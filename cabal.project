@@ -1,0 +1,6 @@
+packages:
+  circuits-mat.cabal
+  ../circuits/circuits.cabal
+  ../numhask/numhask.cabal
+
+write-ghc-environment-files: always
