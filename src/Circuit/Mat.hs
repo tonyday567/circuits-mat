@@ -1,4 +1,8 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 -- | Matrices over a semiring as a category with biproducts.
 --
@@ -102,33 +106,11 @@
 -- The trace satisfies the standard traced-monoidal laws (naturality,
 -- sliding, vanishing, yanking) — see the docspec examples.
 --
--- = Why @Traced@ is not an instance (yet)
+-- = Traced instance
 --
--- The 'Traced' class from @Circuit.Trace@ has a parametric feedback channel
--- @a@:
---
--- @
--- trace :: arr (t a b) (t a c) -> arr b c
--- @
---
--- But 'traceMat' requires 'Finite' evidence on the feedback channel to
--- enumerate it.  This is the central enumeration tension: categorical trace
--- is parametric in the feedback type, but matrices need to know the index
--- set to compute the star-closure formula.
---
--- Possible paths forward:
---
--- 1. __harpie-backed indices__: replace 'Finite' with type-level shapes
---    (@KnownNat@ + harpie 'Harpie.Shape.Fin'), so the index set is a
---    type-level natural and the trace can be a method whose feedback type
---    is a 'Nat'.  The enumeration happens at the type level via 'KnownNat'.
---
--- 2. __Sparse representation__: if matrices are stored sparsely, the trace
---    could be computed without full enumeration — though the star-closure
---    still requires knowing all possible intermediate nodes.
---
--- 3. __Keep @traceMat@ explicit__: it's a well-defined total function; the
---    lack of a 'Traced' instance doesn't prevent using it.
+-- With local 'Category' carrying @Ob (Mat s) a = Finite a@, the feedback
+-- channel of 'trace' carries 'Finite' evidence. 'traceMat' is therefore a
+-- lawful 'Traced' 'Either' instance (Schur-complement / star-closure).
 --
 -- = Relation to harpie
 --
@@ -160,8 +142,10 @@ module Circuit.Mat
   )
 where
 
-import Circuit.Monoidal (Action (..), Tensor (..))
-import Control.Category (Category (..))
+import Circuit.Classes (Category (..))
+import Circuit.Monoidal (Action (..), Tensor (..), Unit)
+import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Trace (Traced (..))
 import Data.List (foldl')
 import Data.Void (Void, absurd)
 import NumHask.Algebra.Additive (Additive (..), sum)
@@ -190,6 +174,9 @@ instance Finite () where
 
 instance Finite Bool where
   universe = [False, True]
+
+instance Finite Void where
+  universe = []
 
 instance (Finite a, Finite b) => Finite (Either a b) where
   universe = map Left universe ++ map Right universe
@@ -248,6 +235,7 @@ runMat ::
 runMat m i j = sum [x | (j', x) <- push [(i, one)] m, j' == j]
 
 instance Category (Mat s) where
+  type Ob (Mat s) a = Finite a
   id = Id
   (.) = Comp
 
@@ -305,6 +293,18 @@ instance Tensor Either (Mat s) where
 -- 1
 instance Action Either (Mat s) where
   swap = Fun swapEither
+
+-- | Arrow-level monoidal structure for 'Either' inside 'Mat'.
+instance (Additive s, Multiplicative s) => Monoidal Either (Mat s) where
+  assoc = Fun assocEither
+  assoc' = Fun assocEither'
+  braid = Fun braidEither
+
+-- | Lawful 'Traced' for matrices: feedback channel carries 'Finite'
+-- evidence via 'Ob (Mat s) a = Finite a'.
+instance (StarSemiring s, Additive s, Multiplicative s) => Traced Either (Mat s) where
+  trace = traceMat
+  untrace f = Par Id f
 
 -- | Reflexive-transitive closure of a square matrix.
 --

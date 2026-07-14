@@ -28,10 +28,15 @@ library
   default-language: GHC2024
   hs-source-dirs: src
   exposed-modules:
-    Circuit.Mat
+    Circuit.Mat,
+    Circuit.Mat.Dense,
+    Circuit.Mat.Harpie,
+    Circuit.MatH
   build-depends:
     base >=4.18 && <5,
     circuits >=0.2 && <0.3,
+    harpie >=0.3 && <0.4,
     numhask >=0.13 && <0.15,
+    vector >=0.12 && <0.14,
 
   default-extensions: RebindableSyntax

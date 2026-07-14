@@ -22,86 +22,164 @@ The `Finite` dictionary is not a performance bottleneck.
 ## 2. Harpie as index type replacement
 
 ### What harpie provides
-- `Harpie.Shape.Fin n`: type-level finite index set `{0, ..., n-1}`
-- `Harpie.Shape.KnownNats`: type-level dimension list
-- `Harpie.Fixed.Array @[n] a`: fixed-shape array with `KnownNat n`
-- `tabulate :: (Fin n -> a) -> Array @[n] a` — builds array from index function
 
-### Matrix as harpie array
-```
-Mat i j s  ≅  Array @[i, j] s   (with KnownNat i, KnownNat j)
+- `Harpie.Shape.Fin (n :: Nat)`: a newtype around `Int` representing `{0, …, n-1}`.
+- `Harpie.Shape.fin :: KnownNat n => Int -> Fin n` constructs a `Fin` (errors out of bounds).
+- `Harpie.Shape.valueOf :: KnownNat n => Int` reflects the type-level bound to the value level.
+- `Harpie.Shape.KnownNats (ns :: [Nat])` witnesses lists of naturals.
+- `Harpie.Fixed.Array (ns :: [Nat]) a` is a dense, statically-shaped array.
+
+A matrix `i -> j` over `s` can be stored as `Array @[i, j] s`.
+
+### Why `Either (Fin i) (Fin j)` is not a harpie shape
+
+harpie shapes are rectangular products of dimensions. The biproduct in `Mat` is a sum (`Either`), with `i + j` inhabitants. There is no shape constructor for sums, so we need an explicit isomorphism.
+
+### The `Either (Fin i) (Fin j) ≅ Fin (i + j)` isomorphism
+
+```haskell
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeOperators #-}
+
+import GHC.TypeNats
+import Harpie.Shape (Fin (..), KnownNat, valueOf)
+
+eitherToFin :: forall i j. (KnownNat i, KnownNat j) => Either (Fin i) (Fin j) -> Fin (i + j)
+eitherToFin (Left (UnsafeFin a))  = UnsafeFin a
+eitherToFin (Right (UnsafeFin b)) = UnsafeFin (valueOf @i + b)
+
+finToEither :: forall i j. (KnownNat i, KnownNat j) => Fin (i + j) -> Either (Fin i) (Fin j)
+finToEither (UnsafeFin x)
+  | x < valueOf @i = Left  (UnsafeFin x)
+  | otherwise      = Right (UnsafeFin (x - valueOf @i))
 ```
 
-### Biproduct via Either
-`Either (Fin i) (Fin j)` is not a harpie shape (shapes are rectangular/products, not sums).
-Need the isomorphism:
-```
-eitherToFin :: Either (Fin i) (Fin j) -> Fin (i + j)
-finToEither :: Fin (i + j) -> Either (Fin i) (Fin j)
-```
-This requires type-level arithmetic (`i + j`) via `GHC.TypeNats`.
+`Harpie.Shape` exports `UnsafeFin`; the bounds are satisfied by construction because `0 ≤ a < i` and `0 ≤ b < j`. `valueOf @i` is the split point. `GHC.TypeNats.+` gives the type-level sum.
 
-The `par` operation would be block-diagonal embedding:
+### What `par` looks like with harpie-backed indices
+
+If matrices are indexed by `Fin n`, the biproduct `par` becomes block-diagonal embedding into shape `[i + k, j + l]`:
+
+```haskell
+parH ::
+  (KnownNat i, KnownNat j, KnownNat k, KnownNat l, Additive s, Multiplicative s) =>
+  Mat s (Fin i) (Fin j) ->
+  Mat s (Fin k) (Fin l) ->
+  Mat s (Fin (i + k)) (Fin (j + l))
+parH m n = Mat $ \r c ->
+  case (finToEither r, finToEither c) of
+    (Left r',  Left c')  -> runMat m r' c'
+    (Right r', Right c') -> runMat n r' c'
+    _                    -> zero
 ```
-par :: Mat i j s -> Mat k l s -> Mat (i + k) (j + l) s
-```
-Clean with `KnownNat` — the index sets compose by addition.
 
-### Feasibility
-- **Yes**: harpie arrays can represent matrices. The `Either` biproduct maps to sum-of-sizes with an index isomorphism.
-- **No**: harpie arrays are rectangular. The `Either` sum type needs explicit iso, adding runtime index arithmetic overhead inside the isomorphism.
-- **Tradeoff**: `Finite` with `Enum`/`Bounded` types is simpler and sufficient for current scale. Harpie would add type-level size guarantees but with more complexity.
+This is the same semantics as the current `Par` constructor, but the result lives on a single rectangular `Fin (i + k) × Fin (j + l)` index set — exactly what a harpie `Array @[i + k, j + l] s` expects.
 
-## 3. Traced instance with KnownNat + harpie
+### Tradeoffs
 
-### Current state
-The `Traced` class from `Circuit.Trace`:
+- **Pros**: index sizes are type-level naturals; dense arrays are first-class; no `Enum`/`Bounded` boilerplate.
+- **Cons**: every `par` and every trace boundary must reindex through the iso; the iso is cheap (`O(1)` integer compare/add) but not zero; sums are not native harpie shapes.
+
+For current `circuits-mat` scale, `Finite` types are simpler. Harpie pays off when we want dense matrix kernels or compile-time shape guarantees.
+
+## 3. Path to a `Traced` instance
+
+### The blocker
+
+`Circuit.Trace.Traced` is parametric in the feedback channel:
+
 ```haskell
 class Traced t arr where
   trace :: arr (t a b) (t a c) -> arr b c
 ```
-`a` is fully parametric — no `Finite`/`KnownNat` constraint.
 
-`traceMat` requires `Finite a` on the feedback channel:
+`traceMat` requires `Finite a` on that channel:
+
 ```haskell
 traceMat :: (..., Finite a, ...) => Mat s (Either a b) (Either a c) -> Mat s b c
 ```
 
-### Why Traced can't be an instance
-The parametric `a` in `Traced` prevents calling `starM` which needs `Finite a`.
-This is a fundamental tension: categorical trace is parametric, but matrix trace needs enumeration.
+The class gives us no `Finite a` evidence, so a direct `Traced Either (Mat s)` instance cannot call `traceMat`.
 
-### Possible resolutions
+### Option A: `KnownNat` wrapper type
 
-#### Option 1: Variant class (TracedK)
+The wrapper bridges harpie’s `Fin` to `circuits-mat`’s `Finite`:
+
 ```haskell
-class TracedK t arr where
-  traceK :: KnownNat n => arr (t (F n) b) (t (F n) c) -> arr b c
-```
-Clean but incompatible with circuits' `Traced`. Creates a parallel universe.
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TypeApplications #-}
 
-#### Option 2: Wrapper type with KnownNat → Finite bridge
-```haskell
-newtype F (n :: Nat) = F (Fin n)
+import GHC.TypeNats
+import Harpie.Shape (Fin (..), fin, valueOf)
+
+newtype F (n :: Nat) = F { unF :: Fin n }
+  deriving (Eq, Ord, Show)
 
 instance KnownNat n => Finite (F n) where
-  universe = map F [0 .. fromIntegral (natVal (Proxy @n)) - 1]
+  universe = [F (fin @n i) | i <- [0 .. valueOf @n - 1]]
 ```
-Keeps `Traced` compatibility. `trace` would work for `F n` feedback channels.
-Requires wrapping/unwrapping at use sites.
 
-#### Option 3: Keep traceMat explicit (current approach)
-`traceMat` is a standalone function with `Finite` constraints.
-No `Traced` instance. Works today, zero friction.
+Now any value of type `Mat s (Either (F n) b) (Either (F n) c)` carries a `Finite (F n)` dictionary from the `KnownNat n` constraint at the use site. We can define:
+
+```haskell
+traceF ::
+  (KnownNat n, StarSemiring s, Additive s, Multiplicative s, Finite b, Finite c) =>
+  Mat s (Either (F n) b) (Either (F n) c) ->
+  Mat s b c
+traceF = traceMat
+```
+
+This works for any feedback size `n` without hand-enumerating inhabitants. It is still not a `Traced` instance because `Traced` is parametric in `a`, but it removes the hand-written `universe` boilerplate.
+
+### Option B: Restricted category `MatF`
+
+Make the category's objects exactly `F n`:
+
+```haskell
+newtype MatF s (i :: Nat) (j :: Nat) = MatF (Mat s (Fin i) (Fin j))
+
+runMatF :: MatF s i j -> Fin i -> Fin j -> s
+runMatF (MatF m) = runMat m
+```
+
+Then we can provide a `Traced` instance by unwrapping `F`, reindexing `Either (F n) (F m)` to `Either (Fin n) (Fin m)`, and calling `traceMat`:
+
+```haskell
+instance Traced Either (MatF s) where
+  trace (MatF m) = MatF $ traceMat $ reindexEitherF m
+```
+
+The instance is valid because every object `F n` is `Finite` whenever `n` is a `Nat`. The cost is a separate category: existing generic code over `Mat` does not apply to `MatF` directly.
+
+### Option C: Upstream `Traced` class change
+
+Add an associated constraint to `Traced`:
+
+```haskell
+class Traced t arr where
+  type TracedObj t arr a :: Constraint
+  type TracedObj t arr a = ()
+  trace :: (TracedObj t arr a) => arr (t a b) (t a c) -> arr b c
+```
+
+Then `Mat` gets:
+
+```haskell
+instance Traced Either (Mat s) where
+  type TracedObj Either (Mat s) a = Finite a
+  trace = traceMat
+```
+
+This is the cleanest end state but it changes `circuits` core and may break other `Traced` instances.
 
 ### Recommendation
-**Option 2 (wrapper type)** is most compatible. Add a `KnownNat`-backed `Finite`
-instance for a wrapper around harpie's `Fin`. This lets `traceMat` work for
-both `Enum`/`Bounded` types and `Fin n` without changing the `Traced` class.
 
-For the `Traced` instance itself: wait until circuits upstream considers a
-`TracedK` variant or until the parametric-vs-enumeration tension is resolved
-differently (e.g., via type-level finite sets in GHC).
+- **Short term**: keep `traceMat` explicit (current approach). It is total and usable today.
+- **Medium term**: land the `F n` wrapper and its `Finite` instance. This lets `traceMat` work with harpie-style index sets without touching `circuits` core.
+- **Long term**: evaluate Option C if multiple categories need finite feedback channels; otherwise keep `traceMat` explicit and avoid a parallel `MatF` category.
 
 ## 4. Verified trace laws (docspec)
 
