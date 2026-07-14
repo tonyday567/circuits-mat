@@ -31,7 +31,6 @@ library
     Circuit.Mat,
     Circuit.Mat.Dense,
     Circuit.Mat.Harpie,
-    Circuit.MatH
   build-depends:
     base >=4.18 && <5,
     circuits >=0.2 && <0.3,
