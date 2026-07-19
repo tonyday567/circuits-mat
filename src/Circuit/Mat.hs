@@ -142,7 +142,7 @@ module Circuit.Mat
   )
 where
 
-import Circuit.Classes (Category (..))
+import Circuit.Category (Category (..))
 import Circuit.Monoidal (Monoidal (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Circuit.Trace (Traced (..))

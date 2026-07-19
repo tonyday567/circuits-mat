@@ -66,7 +66,7 @@ module Circuit.Mat.Dense
   )
 where
 
-import Circuit.Classes (Category (..))
+import Circuit.Category (Category (..))
 import Circuit.Mat (Finite (..), Mat (..), runMat)
 import Circuit.Tensor (Unit)
 import Data.Kind (Type)
@@ -85,7 +85,7 @@ import Prelude hiding (id, sum, (*), (+), (.))
 -- >>> :set -XRebindableSyntax
 -- >>> import NumHask.Prelude
 -- >>> import Circuit.Mat.Dense
--- >>> import Circuit.Classes (Category (..))
+-- >>> import Circuit.Category (Category (..))
 -- >>> import qualified Harpie.Array as A
 
 -- | Rank-2 dense matrix morphism @a → b@.
