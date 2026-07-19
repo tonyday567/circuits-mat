@@ -143,8 +143,8 @@ module Circuit.Mat
 where
 
 import Circuit.Classes (Category (..))
-import Circuit.Monoidal (Action (..), Tensor (..), Unit)
-import Circuit.Monoidal.Category (Monoidal (..))
+import Circuit.Monoidal (Monoidal (..))
+import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Circuit.Trace (Traced (..))
 import Data.List (foldl')
 import Data.Void (Void, absurd)

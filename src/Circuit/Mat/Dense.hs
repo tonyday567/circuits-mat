@@ -68,7 +68,7 @@ where
 
 import Circuit.Classes (Category (..))
 import Circuit.Mat (Finite (..), Mat (..), runMat)
-import Circuit.Monoidal (Unit)
+import Circuit.Tensor (Unit)
 import Data.Kind (Type)
 import Data.List qualified as List
 import Data.Vector.Unboxed qualified as VU
