@@ -33,7 +33,7 @@
 -- has no entries.  Unit laws hold: @par (unitl . unitl') id = id@.
 --
 -- __Action@Either@__: 'swap' permutes index positions — the symmetry of the
--- biproduct.  The braiding @braid :: Either a (Either b c) -> Either b
+-- biproduct.  The slide @slide :: Either a (Either b c) -> Either b
 -- (Either a c)@ is derivable as @assoc . par swap id . assoc'@.
 --
 -- = Biproduct structure and the 2-category
@@ -143,9 +143,9 @@ module Circuit.Mat
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Monoidal (Monoidal (..))
+import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Loop (Loop (..))
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
-import Circuit.Trace (Traced (..))
 import Data.List (foldl')
 import Data.Void (Void, absurd)
 import NumHask.Algebra.Additive (Additive (..), sum)
@@ -258,11 +258,11 @@ swapEither (Right b) = Left b
 
 -- | Nested-slide braid for 'Either'.
 --
--- This is the coproduct braid, derivable as @assoc . par swap id . assoc'@.
-braidEither :: Either a (Either b c) -> Either b (Either a c)
-braidEither (Left a) = Right (Left a)
-braidEither (Right (Left b)) = Left b
-braidEither (Right (Right c)) = Right (Right c)
+-- This is the coproduct slide, derivable as @assoc . par swap id . assoc'@.
+slideEither :: Either a (Either b c) -> Either b (Either a c)
+slideEither (Left a) = Right (Left a)
+slideEither (Right (Left b)) = Left b
+slideEither (Right (Right c)) = Right (Right c)
 
 -- | Coproduct tensor action on 'Mat'.
 --
@@ -295,16 +295,19 @@ instance Action Either (Mat s) where
   swap = Fun swapEither
 
 -- | Arrow-level monoidal structure for 'Either' inside 'Mat'.
-instance (Additive s, Multiplicative s) => Monoidal Either (Mat s) where
+instance (Additive s, Multiplicative s) => Channel Either (Mat s) where
   assoc = Fun assocEither
   assoc' = Fun assocEither'
-  braid = Fun braidEither
+  slide = Fun slideEither
+
+-- | Tensorial strength for the 'Either' tensor on 'Mat'.
+instance (Additive s, Multiplicative s) => Strength Either (Mat s) where
+  strength = Par Id
 
 -- | Lawful 'Traced' for matrices: feedback channel carries 'Finite'
 -- evidence via 'Ob (Mat s) a = Finite a'.
 instance (StarSemiring s, Additive s, Multiplicative s) => Traced Either (Mat s) where
   trace = traceMat
-  untrace f = Par Id f
 
 -- | Reflexive-transitive closure of a square matrix.
 --
