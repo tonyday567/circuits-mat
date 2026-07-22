@@ -33,7 +33,7 @@ library
     Circuit.Mat.Harpie,
   build-depends:
     base >=4.18 && <5,
-    circuits >=0.2 && <0.3,
+    circuits >=0.3 && <0.4,
     harpie >=0.3 && <0.4,
     numhask >=0.13 && <0.15,
     vector >=0.12 && <0.14,
