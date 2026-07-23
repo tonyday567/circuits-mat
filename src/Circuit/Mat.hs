@@ -314,8 +314,9 @@ instance (StarSemiring s, Additive s, Multiplicative s) => Traced Either (Mat s)
 -- | Reflexive-transitive closure of a square matrix.
 --
 -- Implements Kleene's algorithm: for each intermediate index @k@, update all
--- entries @m(i,j) := m(i,j) + m(i,k) * star(m(k,k)) * m(k,j)@. The initial
--- matrix includes the identity: @m0(i,j) = if i == j then one + f i j else f i j@.
+-- entries @m(i,j) := m(i,j) + m(i,k) * star(m(k,k)) * m(k,j)@. The closure is
+-- the original matrix with the loop applied, plus the identity at the end,
+-- so @starM m = I + m + m² + ...@ for arbitrary star semirings.
 --
 -- For idempotent semirings, this is the closure operator of the locally
 -- posetal 2-category: 'starM' computes the least fixed point of
@@ -329,11 +330,11 @@ instance (StarSemiring s, Additive s, Multiplicative s) => Traced Either (Mat s)
 -- >>> getMinPlus (runMat (starM w) A C)
 -- 3.0
 starM :: (StarSemiring s, Additive s, Multiplicative s, Finite a) => Mat s a a -> Mat s a a
-starM m = Mat (foldl' step start universe)
+starM m = Mat (\i j -> closed i j + case i == j of True -> one; False -> zero)
   where
     f = runMat m
-    start i j = case i == j of True -> one + f i j; False -> f i j
     step stepm k i j = stepm i j + (stepm i k * star (stepm k k) * stepm k j)
+    closed = foldl' step f universe
 
 -- | Explicit finite-channel composition for use inside 'traceMat'.
 ecomp ::
