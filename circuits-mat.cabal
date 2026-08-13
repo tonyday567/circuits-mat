@@ -32,9 +32,20 @@ library
     Circuit.Mat.Harpie,
   build-depends:
     base >=4.18 && <5,
-    circuits >=0.3 && <0.4,
+    circuits >=0.3 && <0.5,
     harpie >=0.3 && <0.4,
     numhask >=0.13 && <0.15,
     vector >=0.12 && <0.14,
 
   default-extensions: RebindableSyntax
+
+executable circuits-mat-axioma
+  import: ghc-options-stanza
+  default-language: GHC2024
+  main-is: axioma.hs
+  hs-source-dirs: app
+  build-depends:
+    base >=4.18 && <5,
+    circuits-mat,
+    harpie >=0.3 && <0.4,
+    numhask >=0.13 && <0.15,
