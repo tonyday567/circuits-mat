@@ -123,9 +123,10 @@ starMatrix (Matrix a) =
                       ( \ij -> case ij of
                           [i, j] ->
                             let aik = A.index arr [i, k]
+                                akk = A.index arr [k, k]
                                 akj = A.index arr [k, j]
                                 aij = A.index arr [i, j]
-                             in aij + aik * star akj * akj
+                             in aij + aik * star akk * akj
                           _ -> error "Circuit.Mat.Dense.starMatrix: expected rank-2 index"
                       )
                in Matrix $ foldl' step a [0 .. n - 1]
