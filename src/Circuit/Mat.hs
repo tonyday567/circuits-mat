@@ -139,12 +139,20 @@ module Circuit.Mat
 
     -- * Trace (explicit finite-channel form)
     traceMat,
+
+    -- * Dense field calculus (re-exported from Circuit.Mat.Field)
+    MatrixM,
+    cholM,
+    invtriM,
+    inverseM,
+    MatField (..),
   )
 where
 
 import Circuit.Category (Category (..), ObDict (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Loop (Loop (..))
+import Circuit.Mat.Field
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.List (foldl')
 import Data.Void (Void, absurd)
