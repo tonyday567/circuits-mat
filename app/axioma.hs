@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- | Exact deterministic oracles for the circuits-mat ⟜ harpie boundary.
@@ -6,10 +7,13 @@
 -- Slice 1 of the harpie circuit-theory backport: the dot product as an
 -- expansion/contraction cycle, checked three ways on the same data.
 --
--- ⟜ harpie fused @dot@ is the ⅋ (shared-channel) reading
--- ⟜ harpie unfused @contract . expand@ is the ⊗ (materialized) reading
--- ⟜ circuits-mat @Comp@ is matrix multiplication of row with column
--- ⟜ circuits-mat @traceMat@ puts the common axis on the feedback channel
+-- Slice 2 adds the scheduling/permutation story:
+--
+-- ⟜ @expand@ vs @coexpand@ are the two bias orders of the tensor (⊗) product
+-- ⟜ @windows@ is a schedule morphism realised by @indexWindowsL@
+-- ⟜ @prod@ with explicit dimensions is the alignment schedule inside ⅋
+-- ⟜ @traceMat@ distinguishes a dead feedback loop from a live one
+-- ⟜ @telecasts@ is aligned broadcasting as a batch schedule
 --
 -- See coffee/loom/harpie-circuit-census.md.
 module Main (main) where
@@ -18,7 +22,7 @@ import Circuit.Mat (Mat (..), runMat, traceMat)
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Harpie.Fixed qualified as F
-import Harpie.Shape (Fin (..))
+import Harpie.Shape (Fin (..), SNats, pattern SNats, SNat, pattern SNat, indexWindowsL)
 import NumHask.Algebra.Additive (Additive (..))
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
@@ -39,7 +43,12 @@ main = do
         ("C7 inverseM recovery", checkC7),
         ("C8 invtriM recovery", checkC8),
         ("C9 MatField one is neutral", checkC9),
-        ("C10 MatField division is inverse", checkC10)
+        ("C10 MatField division is inverse", checkC10),
+        ("C11 coexpand is the bias-swapped twin of expand", checkC11),
+        ("C12 windows is a schedule morphism via indexWindowsL", checkC12),
+        ("C13 prod alignment schedule recovers dot after transpose", checkC13),
+        ("C14 traceMat distinguishes dead and live feedback loops", checkC14),
+        ("C15 telecasts is aligned broadcasting as a batch schedule", checkC15)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -144,6 +153,80 @@ checkC9 = one * MatField eM == MatField eM
 checkC10 :: Bool
 checkC10 = MatField dM / MatField dM == (one :: MatField 3 Double)
 
+-- | C11 ⟜ coexpand is the bias-swapped twin of expand.
+--
+-- For operands of the same shape, 'coexpand' is exactly the transpose of
+-- 'expand'; this is the two possible scheduling orders of the tensor (⊗)
+-- product.
+checkC11 :: Bool
+checkC11 =
+  let v3a = F.range @'[3] :: F.Array '[3] Int
+      v3b = F.array @'[3] [10, 11, 12] :: F.Array '[3] Int
+   in F.coexpand (,) v3a v3b == F.transpose (F.expand (,) v3a v3b)
+
+-- | C12 ⟜ windows is a schedule morphism via indexWindowsL.
+--
+-- The windowed array can be recovered by the explicit index schedule
+-- @indexWindowsL@; this is the shared-medium fusion of the outer window
+-- position and the inner window offset.
+checkC12 :: Bool
+checkC12 =
+  let a = F.range @[4,3,2] :: F.Array '[4,3,2] Int
+      w = F.windows (SNats @'[2,2]) a
+      w' = F.unsafeTabulate @'[3,2,2,2,2] (\fi -> F.unsafeIndex a (indexWindowsL 2 fi)) :: F.Array '[3,2,2,2,2] Int
+   in w == w'
+
+-- | C13 ⟜ prod alignment schedule recovers dot after transpose.
+--
+-- 'dot' hard-codes the canonical schedule (last axis of left, first axis of
+-- right).  Here we align the same contracting axes with the schedule
+-- @(ds0 = [0], ds1 = [1])@ after transposing both operands.
+checkC13 :: Bool
+checkC13 =
+  let m = F.range @[2,3] :: F.Array '[2,3] Int
+      n = F.range @[3,2] :: F.Array '[3,2] Int
+      d = F.dot (foldr (+) 0) (*) m n
+      p = F.prod (F.Dims @'[0]) (F.Dims @'[1]) (foldr (+) 0) (*) (F.transpose m) (F.transpose n) :: F.Array '[2,2] Int
+   in d == p
+
+-- | C14 ⟜ traceMat distinguishes dead and live feedback loops.
+--
+-- A dead loop (zero feedback diagonal) reduces to the contraction @mac . mba@,
+-- because @starM@ of the zero feedback matrix is the identity.  A live loop
+-- includes the reflexive-transitive closure of the feedback diagonal, so the
+-- trace differs.
+checkC14 :: Bool
+checkC14 =
+  let dead :: Mat LS (Either (F 1) (F 1)) (Either (F 1) (F 1))
+      dead =
+        Mat $ \i j -> case (i, j) of
+          (Right _, Left (F _)) -> LS 5
+          (Left (F _), Right _) -> LS 3
+          _ -> zero
+      live :: Mat LS (Either (F 1) (F 1)) (Either (F 1) (F 1))
+      live =
+        Mat $ \i j -> case (i, j) of
+          (Left (F fi), Left (F fj)) | fi == fj -> LS 2
+          (Right _, Left (F _)) -> LS 5
+          (Left (F _), Right _) -> LS 3
+          _ -> zero
+      -- dead:  mbc + mac * starM(0) * mba  = 0 + 3 * 1 * 5 = 15
+      -- live:  mbc + mac * starM(2) * mba  = 0 + 3 * 15 * 5 = 225
+      deadResult = runMat (traceMat dead) (finF @1 0) (finF @1 0)
+      liveResult = runMat (traceMat live) (finF @1 0) (finF @1 0)
+   in deadResult == LS 15 && liveResult == LS 225
+
+-- | C15 ⟜ telecasts is aligned broadcasting as a batch schedule.
+--
+-- The outer dimensions are matched and the inner function is applied
+-- pointwise across the shared batch axes.
+checkC15 :: Bool
+checkC15 =
+  let a = F.array @[2,3] [0..5] :: F.Array '[2,3] Int
+      b = F.array @'[3] [6..8] :: F.Array '[3] Int
+      r = F.telecasts (SNats @'[1]) (SNats @'[0]) (F.concatenate (SNat @0)) a b :: F.Array '[3,3] Int
+   in r == F.array @[3,3] [0,3,6,1,4,7,2,5,8]
+
 -- | Int with a star that only fires on zero.
 --
 -- A dead feedback loop reduces the Schur complement to
@@ -163,3 +246,22 @@ instance Multiplicative DS where
 instance StarSemiring DS where
   star (DS 0) = DS 1
   star x = error ("trace-dot: feedback channel went live: " ++ show x)
+
+-- | Int with a star that distinguishes dead and live loops.
+--
+-- @star 0 = 1@ keeps the contraction reading intact; @star n = n + 1@ for
+-- non-zero @n@ makes a live feedback channel produce a different trace value.
+newtype LS = LS Int
+  deriving (Eq, Show)
+
+instance Additive LS where
+  LS a + LS b = LS (a + b)
+  zero = LS 0
+
+instance Multiplicative LS where
+  LS a * LS b = LS (a * b)
+  one = LS 1
+
+instance StarSemiring LS where
+  star (LS 0) = LS 1
+  star (LS n) = LS (n + 1)
