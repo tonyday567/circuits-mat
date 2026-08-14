@@ -108,6 +108,10 @@ matVec (Matrix a) v =
 -- For a matrix @A@, computes @A* = I + A + A² + ...@ as the least fixed
 -- point of @X ↦ I + A·X@. Requires a 'StarSemiring' element type so that
 -- @star x@ is available for the pivot updates.
+--
+-- When the element type is a 'NumHask.Algebra.Quantale.Quantale', this is the
+-- join of the geometric series @I + A + A² + …@; the algorithm uses the
+-- 'StarSemiring' fragment (iterative joins) to compute it finitely.
 starMatrix ::
   (StarSemiring a) =>
   Matrix a ->

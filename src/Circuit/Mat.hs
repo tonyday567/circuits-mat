@@ -86,6 +86,13 @@
 -- * @Tropical@ (min-plus): all-pairs shortest paths (Floyd-Warshall).
 -- * @StarSemiring String@: regular expression for all paths.
 --
+-- These carriers are not merely semirings; the canonical ones are
+-- /quantales/ — complete join-semilattices with monoidal multiplication
+-- distributing over arbitrary joins. See "NumHask.Algebra.Quantale". In
+-- that setting matrix addition is pointwise join and the Kleene star is the
+-- least fixed point @I + A + A² + …@. 'starM' uses the 'StarSemiring'
+-- fragment, which is exactly the iterative-join part of a quantale.
+--
 -- Kleene's algorithm enumerates intermediate indices: @O(|V|³)@ in the
 -- number of elements of the 'Finite' type.
 --
