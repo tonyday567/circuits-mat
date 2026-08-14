@@ -65,7 +65,10 @@ main = do
         ("C26 Circuit.Stream: unsnoc (snoc xs x) == (xs, x)", checkC26),
         ("C27 Circuit.Stream: snoc init last recovers the array", checkC27),
         ("C28 Circuit.Stream: cons to empty stream builds a one-row array", checkC28),
-        ("C29 Circuit.Stream: snoc to empty stream builds a one-row array", checkC29)
+        ("C29 Circuit.Stream: snoc to empty stream builds a one-row array", checkC29),
+        ("C30 transpose on [2,3,4] is reorder by the reversed axis list", checkC30),
+        ("C31 transpose is an involution", checkC31),
+        ("C32 coexpand is expand followed by the block-swap permutation", checkC32)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -406,6 +409,33 @@ checkC29 =
       row = A.array [2, 3] [1 .. 6]
    in case A.unsnoc (snoc (A.empty :: A.Array Int) row :: A.Array Int) of
         (init_, lastRow) -> lastRow == row && A.isNull init_
+
+-- | C30 ⟜ transpose on [2,3,4] is reorder by the reversed axis list.
+--
+-- 'transpose' is the symmetry of the shape-monoid: it reverses the axis order.
+-- For a three-axis array this is exactly the permutation @[2,1,0]@.
+checkC30 :: Bool
+checkC30 =
+  let a = F.range @'[2, 3, 4] :: F.Array '[2, 3, 4] Int
+   in F.transpose a == F.reorder (F.Dims @'[2, 1, 0]) a
+
+-- | C31 ⟜ transpose is an involution.
+checkC31 :: Bool
+checkC31 =
+  let a = F.range @'[2, 3, 4] :: F.Array '[2, 3, 4] Int
+   in F.transpose (F.transpose a) == a
+
+-- | C32 ⟜ coexpand is expand followed by the block-swap permutation.
+--
+-- For operands of different shape, 'coexpand' is /not/ 'transpose' of 'expand';
+-- it is the block-swap reorder that places the second operand's shape first.
+-- Here @[2,3,0,1]@ swaps the @[2,3]@ block and the @[4,5]@ block of the
+-- expanded shape @[2,3,4,5]@, yielding the @coexpand@ shape @[4,5,2,3]@.
+checkC32 :: Bool
+checkC32 =
+  let a = F.range @'[2, 3] :: F.Array '[2, 3] Int
+      b = F.range @'[4, 5] :: F.Array '[4, 5] Int
+   in F.coexpand (,) a b == F.reorder (F.Dims @'[2, 3, 0, 1]) (F.expand (,) a b)
 
 -- | Int with a star that only fires on zero.
 --
