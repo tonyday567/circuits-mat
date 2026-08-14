@@ -15,14 +15,15 @@
 module Main (main) where
 
 import Circuit.Mat (Mat (..), runMat, traceMat)
+import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fin (..))
 import NumHask.Algebra.Additive (Additive (..))
-import NumHask.Algebra.Multiplicative (Multiplicative (..))
+import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
 import System.Exit (exitFailure)
-import Prelude hiding (sum, (*), (+))
+import Prelude hiding (recip, sum, (*), (+), (/))
 
 main :: IO ()
 main = do
@@ -33,7 +34,12 @@ main = do
         ("C2 harpie unfused contract . expand [4].[4]", checkC2),
         ("C3 circuits-mat Comp row.col [4].[4]", checkC3),
         ("C4 circuits-mat traceMat, common axis on the feedback channel", checkC4),
-        ("C5 Comp == harpie dot [2,3].[3,2]", checkC5)
+        ("C5 Comp == harpie dot [2,3].[3,2]", checkC5),
+        ("C6 cholM recovery", checkC6),
+        ("C7 inverseM recovery", checkC7),
+        ("C8 invtriM recovery", checkC8),
+        ("C9 MatField one is neutral", checkC9),
+        ("C10 MatField division is inverse", checkC10)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -102,6 +108,41 @@ checkC5 =
         | i <- [0, 1],
           k <- [0, 1]
         ]
+
+-- | Shared positive-definite test matrix for field calculus.
+eM :: F.Array '[3,3] Double
+eM = F.array @[3,3] [4,12,-16,12,37,-43,-16,-43,98]
+
+-- | Shared upper-triangular test matrix.
+tM :: F.Array '[3,3] Double
+tM = F.array @[3,3] [1,0,1,0,1,2,0,0,1]
+
+-- | Shared diagonal matrix with exact Cholesky and exact inverse.
+--
+-- Entries are powers of two so their square roots and reciprocals are exactly
+-- representable in Double.
+dM :: F.Array '[3,3] Double
+dM = F.array @[3,3] [4,0,0,0,16,0,0,0,64]
+
+-- | C6 ⟜ Cholesky factor recovers the original matrix.
+checkC6 :: Bool
+checkC6 = F.mult (cholM eM) (F.transpose (cholM eM)) == eM
+
+-- | C7 ⟜ Inverse times original is identity.
+checkC7 :: Bool
+checkC7 = F.mult (inverseM dM) dM == F.ident @[3,3]
+
+-- | C8 ⟜ Triangular inverse times original is identity.
+checkC8 :: Bool
+checkC8 = F.mult tM (invtriM tM) == F.ident @[3,3]
+
+-- | C9 ⟜ MatField one is the identity matrix.
+checkC9 :: Bool
+checkC9 = one * MatField eM == MatField eM
+
+-- | C10 ⟜ MatField division uses inverseM.
+checkC10 :: Bool
+checkC10 = MatField dM / MatField dM == (one :: MatField 3 Double)
 
 -- | Int with a star that only fires on zero.
 --

@@ -174,7 +174,7 @@ invtriM a = i
 -- The unit is the identity matrix; multiplication is the usual matrix product.
 -- Division uses Cholesky-based inversion.
 newtype MatField n a = MatField {unMatField :: MatrixM n a}
-  deriving stock (Show)
+  deriving stock (Eq, Show)
 
 instance
   ( KnownNat n,
