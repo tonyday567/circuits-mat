@@ -29,6 +29,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit.Mat,
+    Circuit.Mat.Array,
     Circuit.Mat.Field,
     Circuit.Mat.Harpie,
   build-depends:

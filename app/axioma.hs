@@ -18,11 +18,12 @@
 -- See coffee/loom/harpie-circuit-census.md.
 module Main (main) where
 
-import Circuit.Mat (Mat (..), runMat, traceMat)
+import Circuit.Mat (Finite (..), Mat (..), runMat, traceMat)
+import Circuit.Mat.Array
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Harpie.Fixed qualified as F
-import Harpie.Shape (Fin (..), SNats, pattern SNats, SNat, pattern SNat, indexWindowsL)
+import Harpie.Shape (Fins (..), Fin (..), KnownNats (..), SNats, pattern SNats, SNat, pattern SNat, indexWindowsL)
 import NumHask.Algebra.Additive (Additive (..))
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
@@ -48,7 +49,14 @@ main = do
         ("C12 windows is a schedule morphism via indexWindowsL", checkC12),
         ("C13 prod alignment schedule recovers dot after transpose", checkC13),
         ("C14 traceMat distinguishes dead and live feedback loops", checkC14),
-        ("C15 telecasts is aligned broadcasting as a batch schedule", checkC15)
+        ("C15 telecasts is aligned broadcasting as a batch schedule", checkC15),
+        ("C16 [C;I] reindexing identity (A1)", checkC16),
+        ("C17 [C;I] reindexing composition / backpermute fusion (A2)", checkC17),
+        ("C18 [C;I] batch identity (A3)", checkC18),
+        ("C19 [C;I] batch composition (A4)", checkC19),
+        ("C20 [C;I] Yoneda sliding for deterministic base maps (A5)", checkC20),
+        ("C21 [C;I] join/separator iso for function arrays (A6)", checkC21),
+        ("C22 [C;I] join/separator iso for Mat arrays (A7)", checkC22)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -226,6 +234,109 @@ checkC15 =
       b = F.array @'[3] [6..8] :: F.Array '[3] Int
       r = F.telecasts (SNats @'[1]) (SNats @'[0]) (F.concatenate (SNat @0)) a b :: F.Array '[3,3] Int
    in r == F.array @[3,3] [0,3,6,1,4,7,2,5,8]
+
+-- | Helper: extensional equality of function arrays.
+eqArrayFun :: forall s a. (KnownNats s, Eq a) => ArrayC (->) s a -> ArrayC (->) s a -> Bool
+eqArrayFun (ArrayC f) (ArrayC g) = all (\i -> f i == g i) (allFins @s)
+
+-- | Helper: extensional equality of Mat arrays.
+eqArrayMat ::
+  forall s a r.
+  (KnownNats s, Finite a, Eq a, Additive r, Multiplicative r, Eq r) =>
+  ArrayC (Mat r) s a ->
+  ArrayC (Mat r) s a ->
+  Bool
+eqArrayMat (ArrayC m) (ArrayC n) =
+  all (\(i, j) -> runMat m i j == runMat n i j)
+    [(i, j) | i <- allFins @s, j <- universe]
+
+-- | Helper: extensional equality of index functions.
+eqIx :: forall s a. (KnownNats s, Eq a) => (Fins s -> a) -> (Fins s -> a) -> Bool
+eqIx f g = all (\i -> f i == g i) (allFins @s)
+
+-- | Swap the two axes of a [2,3] array to a [3,2] array.
+swap23 :: IxMap '[3,2] '[2,3]
+swap23 (UnsafeFins [i, j]) = UnsafeFins [j, i]
+swap23 _ = error "swap23: unexpected index"
+
+-- | Swap the two axes of a [3,2] array back to a [2,3] array.
+swap32 :: IxMap '[2,3] '[3,2]
+swap32 (UnsafeFins [j, i]) = UnsafeFins [i, j]
+swap32 _ = error "swap32: unexpected index"
+
+-- | A sample function array for the function-base oracles.
+sampleFunArray :: ArrayC (->) '[2,3] Int
+sampleFunArray = tabulateC $ \fi ->
+  case fromFins fi of
+    [i, j] -> i * 10 + j
+    _ -> error "sampleFunArray: unexpected index"
+
+-- | C16 ⟜ reindexing identity (A1).
+--
+-- Reindexing by the identity index map leaves the array unchanged.
+checkC16 :: Bool
+checkC16 = eqArrayFun (reindex id sampleFunArray) sampleFunArray
+
+-- | C17 ⟜ reindexing composition / backpermute fusion (A2).
+--
+-- Reindexing is contravariant in the index map: @reindex f . reindex g = reindex (g . f)@.
+-- Here swapping twice lands back on the original shape.
+checkC17 :: Bool
+checkC17 =
+  eqArrayFun
+    (reindex swap32 . reindex swap23 $ sampleFunArray)
+    (reindex (swap23 . swap32) sampleFunArray)
+
+-- | C18 ⟜ batch identity (A3).
+--
+-- The batch lift of the identity base morphism is the identity array morphism.
+checkC18 :: Bool
+checkC18 = eqArrayFun (batch id sampleFunArray) sampleFunArray
+
+-- | C19 ⟜ batch composition (A4).
+--
+-- Batch lifting commutes with composition of base morphisms.
+checkC19 :: Bool
+checkC19 =
+  eqArrayFun
+    (batch ((+ 1) . (* 2)) sampleFunArray)
+    (batch (+ 1) . batch (* 2) $ sampleFunArray)
+
+-- | C20 ⟜ Yoneda sliding for deterministic base maps (A5).
+--
+-- For deterministic arrays, reindexing and batch lifting slide past each other.
+checkC20 :: Bool
+checkC20 =
+  eqArrayFun
+    (batch (+ 1) . reindex swap23 $ sampleFunArray)
+    (reindex swap23 . batch (+ 1) $ sampleFunArray)
+
+-- | C21 ⟜ join/separator iso for function arrays (A6).
+--
+-- @indexC . tabulateC = id@ and @tabulateC . indexC = id@ for the function
+-- base category.
+checkC21 :: Bool
+checkC21 =
+  let f :: Fins '[2,3] -> Int
+      f fi = case fromFins fi of [i, j] -> i * 10 + j; _ -> error "checkC21: unexpected index"
+      arr :: ArrayC (->) '[2,3] Int
+      arr = tabulateC f
+   in eqIx (indexC arr) f
+        && eqArrayFun (tabulateC (indexC sampleFunArray) :: ArrayC (->) '[2,3] Int) sampleFunArray
+
+-- | C22 ⟜ join/separator iso for Mat arrays (A7).
+--
+-- The same isomorphism holds when the base category is matrices: a functional
+-- matrix can be recovered from its tabulated form.
+checkC22 :: Bool
+checkC22 =
+  let fM :: Fins '[2,3] -> F 2
+      fM fi = case fromFins fi of
+        [i, j] -> F (UnsafeFin (mod (i + j) 2))
+        _ -> error "checkC22: unexpected index"
+      arrM :: ArrayC (Mat Int) '[2,3] (F 2)
+      arrM = tabulateC fM
+   in eqIx (indexC arrM) fM && eqArrayMat (tabulateC (indexC arrM)) arrM
 
 -- | Int with a star that only fires on zero.
 --
