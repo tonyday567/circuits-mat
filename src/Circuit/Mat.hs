@@ -167,7 +167,7 @@ import Prelude hiding (id, sum, (*), (+), (.))
 -- >>> :set -XRebindableSyntax
 -- >>> :set -XStandaloneDeriving
 -- >>> import NumHask.Prelude
--- >>> import NumHask.Algebra.Tropical
+-- >>> import NumHask.Free.Carriers
 -- >>> import Circuit.Mat
 -- >>> data Node = A | B | C deriving (Eq, Ord, Enum, Bounded, Show)
 -- >>> instance Finite Node where universe = [A, B, C]
