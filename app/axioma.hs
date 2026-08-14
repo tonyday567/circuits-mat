@@ -20,8 +20,10 @@ module Main (main) where
 
 import Circuit.Mat (Finite (..), Mat (..), runMat, traceMat)
 import Circuit.Mat.Array
+import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
+import Harpie.Array qualified as A
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fins (..), Fin (..), KnownNats (..), SNats, pattern SNats, SNat, pattern SNat, indexWindowsL)
 import NumHask.Algebra.Additive (Additive (..))
@@ -56,7 +58,14 @@ main = do
         ("C19 [C;I] batch composition (A4)", checkC19),
         ("C20 [C;I] Yoneda sliding for deterministic base maps (A5)", checkC20),
         ("C21 [C;I] join/separator iso for function arrays (A6)", checkC21),
-        ("C22 [C;I] join/separator iso for Mat arrays (A7)", checkC22)
+        ("C22 [C;I] join/separator iso for Mat arrays (A7)", checkC22),
+        ("C23 Circuit.Stream: uncons nil == That nil", checkC23),
+        ("C24 Circuit.Stream: uncons (cons x xs) == These x xs", checkC24),
+        ("C25 Circuit.Stream: cons head tail recovers the array", checkC25),
+        ("C26 Circuit.Stream: unsnoc (snoc xs x) == (xs, x)", checkC26),
+        ("C27 Circuit.Stream: snoc init last recovers the array", checkC27),
+        ("C28 Circuit.Stream: cons to empty stream builds a one-row array", checkC28),
+        ("C29 Circuit.Stream: snoc to empty stream builds a one-row array", checkC29)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -337,6 +346,66 @@ checkC22 =
       arrM :: ArrayC (Mat Int) '[2,3] (F 2)
       arrM = tabulateC fM
    in eqIx (indexC arrM) fM && eqArrayMat (tabulateC (indexC arrM)) arrM
+
+-- | Short alias for the stream boundary type used in the oracles.
+type ArrayThese a = These (A.Array a) (A.Array a)
+
+-- | C23 ⟜ Circuit.Stream: uncons nil == That nil.
+checkC23 :: Bool
+checkC23 = (uncons (A.empty :: A.Array Int) :: ArrayThese Int) == That A.empty
+
+-- | C24 ⟜ Circuit.Stream: uncons (cons x xs) == These x xs.
+checkC24 :: Bool
+checkC24 =
+  let row :: A.Array Int
+      row = A.array [3] [10, 11, 12]
+      rows :: A.Array Int
+      rows = A.array [2, 3] [1 .. 6]
+   in (uncons (cons row rows) :: ArrayThese Int) == These row rows
+
+-- | C25 ⟜ Circuit.Stream: cons head tail recovers the array.
+checkC25 :: Bool
+checkC25 =
+  let rows :: A.Array Int
+      rows = A.array [3, 3] [1 .. 9]
+   in case (uncons rows :: ArrayThese Int) of
+        These row rest -> cons row rest == rows
+        _ -> False
+
+-- | C26 ⟜ Circuit.Stream: unsnoc (snoc xs x) == (xs, x).
+checkC26 :: Bool
+checkC26 =
+  let rows :: A.Array Int
+      rows = A.array [2, 3] [1 .. 6]
+      row :: A.Array Int
+      row = A.array [3] [7, 8, 9]
+   in A.unsnoc (snoc rows row :: A.Array Int) == (rows, row)
+
+-- | C27 ⟜ Circuit.Stream: snoc init last recovers the array.
+checkC27 :: Bool
+checkC27 =
+  let rows :: A.Array Int
+      rows = A.array [3, 3] [1 .. 9]
+   in case A.unsnoc rows of
+        (init_, lastRow) -> (snoc init_ lastRow :: A.Array Int) == rows
+
+-- | C28 ⟜ Circuit.Stream: cons to empty stream builds a one-row array.
+checkC28 :: Bool
+checkC28 =
+  let row :: A.Array Int
+      row = A.array [2, 3] [1 .. 6]
+   in (uncons (cons row (A.empty :: A.Array Int)) :: ArrayThese Int) == This row
+
+-- | C29 ⟜ Circuit.Stream: snoc to empty stream builds a one-row array.
+--
+-- The empty init returned by 'unsnoc' carries the row shape, so we only check
+-- that it is null and that the last row is recovered.
+checkC29 :: Bool
+checkC29 =
+  let row :: A.Array Int
+      row = A.array [2, 3] [1 .. 6]
+   in case A.unsnoc (snoc (A.empty :: A.Array Int) row :: A.Array Int) of
+        (init_, lastRow) -> lastRow == row && A.isNull init_
 
 -- | Int with a star that only fires on zero.
 --

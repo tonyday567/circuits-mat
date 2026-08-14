@@ -30,6 +30,7 @@ library
   exposed-modules:
     Circuit.Mat,
     Circuit.Mat.Array,
+    Circuit.Mat.Array.Stream,
     Circuit.Mat.Field,
     Circuit.Mat.Harpie,
   build-depends:
