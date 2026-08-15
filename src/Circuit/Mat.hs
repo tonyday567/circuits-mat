@@ -147,6 +147,13 @@ module Circuit.Mat
     -- * Trace (explicit finite-channel form)
     traceMat,
 
+    -- * Involution structure (Ex6: reversibility, duality, conjugation)
+    Dual (..),
+    transposeMat,
+    dualMat,
+    Conjugate (..),
+    conjugateMat,
+
     -- * Dense field calculus (re-exported from Circuit.Mat.Field)
     MatrixM,
     cholM,
@@ -161,7 +168,11 @@ import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Loop (Loop (..))
 import Circuit.Mat.Field
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
+import Data.Bool (bool)
 import Data.List (foldl')
+import NumHask.Algebra.Additive (Subtractive (..))
+import NumHask.Algebra.Ring (Distributive, InvolutiveRing (..))
+import NumHask.Data.Complex (Complex (..))
 import Data.Void (Void, absurd)
 import NumHask.Algebra.Additive (Additive (..), sum)
 import NumHask.Algebra.Multiplicative (Multiplicative (..))
@@ -424,3 +435,68 @@ traceMat m = mbc `addMat` ecomp (ecomp mac (starM maa)) mba
     mba = Mat (\i j -> runMat m (Right i) (Left j))
     mbc = Mat (\i j -> runMat m (Right i) (Right j))
     addMat x y = Mat (\i j -> runMat x i j + runMat y i j)
+
+
+-- ===========================================================================
+-- Involution structure: reversibility, duality, conjugation (Ex6)
+-- ===========================================================================
+
+-- | Object-level duality marker.  @Dual i@ is the dual index set of @i@;
+-- it carries the same inhabitants but is a distinct type, so duality is
+-- visible at the object level.
+newtype Dual a = Dual a
+  deriving (Eq, Ord, Show)
+
+instance (Finite a) => Finite (Dual a) where
+  universe = map Dual universe
+
+-- | Freeze a symbolic matrix term to its underlying function.  Evaluation
+-- requires finite index sets at the boundary.
+freezeMat ::
+  (Additive s, Multiplicative s, Finite i, Finite j, Eq j) =>
+  Mat s i j ->
+  (i -> j -> s)
+freezeMat m = runMat m
+
+-- | Reversibility: matrix transpose.
+--
+-- This is the dagger/reversibility involution.  It is contravariant and
+-- identity-on-objects: a morphism @i -> j@ becomes @j -> i@, but the object
+-- labels themselves do not change.
+transposeMat ::
+  (Additive s, Multiplicative s, Finite i, Finite j, Eq i, Eq j) =>
+  Mat s i j ->
+  Mat s j i
+transposeMat m = Mat (\j i -> freezeMat m i j)
+
+-- | Duality: the dual of a linear map @f :: i -> j@ is @f* :: j* -> i*@.
+--
+-- This is /not/ identity-on-objects: it tags both source and target with
+-- 'Dual'.  Over a field it is the transpose carried by the dual basis.
+dualMat ::
+  (Additive s, Multiplicative s, Finite i, Finite j, Eq i, Eq j) =>
+  Mat s i j ->
+  Mat s (Dual j) (Dual i)
+dualMat m = Mat (\(Dual j) (Dual i) -> freezeMat m i j)
+
+-- | Scalar involution.  For 'Complex' this is 'adj' / complex conjugation.
+class Conjugate s where
+  conjugateS :: s -> s
+
+instance Conjugate Double where
+  conjugateS = id
+
+instance (Distributive s, Subtractive s) => Conjugate (Complex s) where
+  conjugateS = adj
+
+-- | Conjugation: the composite of duality and reversibility, expressed with
+-- the standard identification of a finite-dimensional space with its dual.
+--
+-- It is a covariant endofunctor on objects and, over 'Complex', is entrywise
+-- complex conjugation.  It is distinct from both 'transposeMat'
+-- (identity-on-objects contravariant) and 'dualMat' (not identity-on-objects).
+conjugateMat ::
+  (Conjugate s, Additive s, Multiplicative s, Finite i, Finite j, Eq j) =>
+  Mat s i j ->
+  Mat s i j
+conjugateMat m = Mat (\i j -> conjugateS (freezeMat m i j))

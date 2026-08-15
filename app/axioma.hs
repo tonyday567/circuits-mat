@@ -18,7 +18,7 @@
 -- See coffee/loom/harpie-circuit-census.md.
 module Main (main) where
 
-import Circuit.Mat (Finite (..), Mat (..), runMat, traceMat)
+import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateMat, dualMat, runMat, traceMat, transposeMat)
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
@@ -29,6 +29,8 @@ import Harpie.Shape (Fins (..), Fin (..), KnownNats (..), SNats, pattern SNats, 
 import NumHask.Algebra.Additive (Additive (..))
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
+import Data.Bool (bool)
+import NumHask.Data.Complex (Complex, (+:))
 import System.Exit (exitFailure)
 import Prelude hiding (recip, sum, (*), (+), (/))
 
@@ -68,7 +70,10 @@ main = do
         ("C29 Circuit.Stream: snoc to empty stream builds a one-row array", checkC29),
         ("C30 transpose on [2,3,4] is reorder by the reversed axis list", checkC30),
         ("C31 transpose is an involution", checkC31),
-        ("C32 coexpand is expand followed by the block-swap permutation", checkC32)
+        ("C32 coexpand is expand followed by the block-swap permutation", checkC32),
+        ("C33 Mat transpose is identity-on-objects and involutive", checkC33),
+        ("C34 Mat dual is not identity-on-objects", checkC34),
+        ("C35 Mat conjugation is a third involution over Complex", checkC35)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -475,3 +480,49 @@ instance Multiplicative LS where
 instance StarSemiring LS where
   star (LS 0) = LS 1
   star (LS n) = LS (n + 1)
+
+
+-- | C33 ⟜ Mat transpose is identity-on-objects and involutive.
+--
+-- Reversibility (dagger) flips the arrow but keeps the object labels.
+-- For a concrete matrix, applying 'transposeMat' twice recovers the original.
+checkC33 :: Bool
+checkC33 =
+  let m :: Mat Int Bool Bool
+      m = Mat (\i j -> bool (0 :: Int) 1 (i == j))
+   in runMat (transposeMat (transposeMat m)) False True
+        == runMat m False True
+
+-- | C34 ⟜ Mat dual is not identity-on-objects.
+--
+-- Duality tags both source and target with 'Dual'.  The involution property
+-- holds only after stripping the double-dual; the object tag itself differs
+-- from the original.
+checkC34 :: Bool
+checkC34 =
+  let m :: Mat Int Bool Bool
+      m = Mat (\i _ -> bool (0 :: Int) 1 i)
+      dd :: Mat Int (Dual (Dual Bool)) (Dual (Dual Bool))
+      dd = dualMat (dualMat m)
+   in runMat dd (Dual (Dual False)) (Dual (Dual True))
+        == runMat m False True
+
+-- | C35 ⟜ Mat conjugation is a third involution over Complex.
+--
+-- Conjugation is the composite of duality and reversibility, expressed with
+-- the standard self-duality of finite-dimensional spaces.  It is covariant,
+-- identity-on-objects, and distinct from both transpose and dual: for a
+-- non-real entry it changes the scalar while transpose moves it across the
+-- diagonal.
+checkC35 :: Bool
+checkC35 =
+  let i :: Complex Double
+      i = 0 +: 1
+      m :: Mat (Complex Double) Bool Bool
+      m = Mat (\_ j -> bool zero i j)
+      conjTwice = conjugateMat (conjugateMat m)
+      transposed = transposeMat m
+   in runMat conjTwice False True == runMat m False True
+        && runMat (conjugateMat m) False True /= runMat m False True
+        && runMat transposed True False == runMat m False True
+        && runMat transposed False True /= runMat m False True
