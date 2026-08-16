@@ -69,7 +69,7 @@ import Prelude hiding (id, (.))
 --
 -- >>> :set -XDataKinds
 -- >>> :set -XTypeApplications
--- >>> import Harpie.Shape (pattern SNats)
+-- >>> import Harpie.Shape
 -- >>> import Circuit.Mat.Array
 
 -- | A morphism in the indexing category @I@: a map between shape indices.
