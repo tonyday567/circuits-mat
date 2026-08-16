@@ -18,21 +18,21 @@
 -- See coffee/loom/harpie-circuit-census.md.
 module Main (main) where
 
-import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateMat, dualMat, runMat, traceMat, transposeMat)
+import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Lolli (..), Mat (..), conjugateMat, dualMat, runMat, traceMat, transposeMat)
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
+import Data.Bool (bool)
 import Harpie.Array qualified as A
 import Harpie.Fixed qualified as F
-import Harpie.Shape (Fins (..), Fin (..), KnownNats (..), SNats, pattern SNats, SNat, pattern SNat, indexWindowsL)
+import Harpie.Shape (Fin (..), Fins (..), KnownNats (..), SNat, SNats, indexWindowsL, pattern SNat, pattern SNats)
 import NumHask.Algebra.Additive (Additive (..))
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
-import Data.Bool (bool)
 import NumHask.Data.Complex (Complex, (+:))
 import System.Exit (exitFailure)
-import Prelude hiding (recip, sum, (*), (+), (/))
+import Prelude hiding (curry, recip, sum, uncurry, (*), (+), (/))
 
 main :: IO ()
 main = do
@@ -73,7 +73,9 @@ main = do
         ("C32 coexpand is expand followed by the block-swap permutation", checkC32),
         ("C33 Mat transpose is identity-on-objects and involutive", checkC33),
         ("C34 Mat dual is not identity-on-objects", checkC34),
-        ("C35 Mat conjugation is a third involution over Complex", checkC35)
+        ("C35 Mat conjugation is a third involution over Complex", checkC35),
+        ("C36 Lolli curry/uncurry reshape are inverse", checkC36),
+        ("C37 Lolli eval contracts the repeated index", checkC37)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -144,19 +146,19 @@ checkC5 =
         ]
 
 -- | Shared positive-definite test matrix for field calculus.
-eM :: F.Array '[3,3] Double
-eM = F.array @[3,3] [4,12,-16,12,37,-43,-16,-43,98]
+eM :: F.Array '[3, 3] Double
+eM = F.array @[3, 3] [4, 12, -16, 12, 37, -43, -16, -43, 98]
 
 -- | Shared upper-triangular test matrix.
-tM :: F.Array '[3,3] Double
-tM = F.array @[3,3] [1,0,1,0,1,2,0,0,1]
+tM :: F.Array '[3, 3] Double
+tM = F.array @[3, 3] [1, 0, 1, 0, 1, 2, 0, 0, 1]
 
 -- | Shared diagonal matrix with exact Cholesky and exact inverse.
 --
 -- Entries are powers of two so their square roots and reciprocals are exactly
 -- representable in Double.
-dM :: F.Array '[3,3] Double
-dM = F.array @[3,3] [4,0,0,0,16,0,0,0,64]
+dM :: F.Array '[3, 3] Double
+dM = F.array @[3, 3] [4, 0, 0, 0, 16, 0, 0, 0, 64]
 
 -- | C6 ⟜ Cholesky factor recovers the original matrix.
 checkC6 :: Bool
@@ -164,11 +166,11 @@ checkC6 = F.mult (cholM eM) (F.transpose (cholM eM)) == eM
 
 -- | C7 ⟜ Inverse times original is identity.
 checkC7 :: Bool
-checkC7 = F.mult (inverseM dM) dM == F.ident @[3,3]
+checkC7 = F.mult (inverseM dM) dM == F.ident @[3, 3]
 
 -- | C8 ⟜ Triangular inverse times original is identity.
 checkC8 :: Bool
-checkC8 = F.mult tM (invtriM tM) == F.ident @[3,3]
+checkC8 = F.mult tM (invtriM tM) == F.ident @[3, 3]
 
 -- | C9 ⟜ MatField one is the identity matrix.
 checkC9 :: Bool
@@ -196,9 +198,9 @@ checkC11 =
 -- position and the inner window offset.
 checkC12 :: Bool
 checkC12 =
-  let a = F.range @[4,3,2] :: F.Array '[4,3,2] Int
-      w = F.windows (SNats @'[2,2]) a
-      w' = F.unsafeTabulate @'[3,2,2,2,2] (\fi -> F.unsafeIndex a (indexWindowsL 2 fi)) :: F.Array '[3,2,2,2,2] Int
+  let a = F.range @[4, 3, 2] :: F.Array '[4, 3, 2] Int
+      w = F.windows (SNats @'[2, 2]) a
+      w' = F.unsafeTabulate @'[3, 2, 2, 2, 2] (\fi -> F.unsafeIndex a (indexWindowsL 2 fi)) :: F.Array '[3, 2, 2, 2, 2] Int
    in w == w'
 
 -- | C13 ⟜ prod alignment schedule recovers dot after transpose.
@@ -208,10 +210,10 @@ checkC12 =
 -- @(ds0 = [0], ds1 = [1])@ after transposing both operands.
 checkC13 :: Bool
 checkC13 =
-  let m = F.range @[2,3] :: F.Array '[2,3] Int
-      n = F.range @[3,2] :: F.Array '[3,2] Int
+  let m = F.range @[2, 3] :: F.Array '[2, 3] Int
+      n = F.range @[3, 2] :: F.Array '[3, 2] Int
       d = F.dot (foldr (+) 0) (*) m n
-      p = F.prod (F.Dims @'[0]) (F.Dims @'[1]) (foldr (+) 0) (*) (F.transpose m) (F.transpose n) :: F.Array '[2,2] Int
+      p = F.prod (F.Dims @'[0]) (F.Dims @'[1]) (foldr (+) 0) (*) (F.transpose m) (F.transpose n) :: F.Array '[2, 2] Int
    in d == p
 
 -- | C14 ⟜ traceMat distinguishes dead and live feedback loops.
@@ -247,10 +249,10 @@ checkC14 =
 -- pointwise across the shared batch axes.
 checkC15 :: Bool
 checkC15 =
-  let a = F.array @[2,3] [0..5] :: F.Array '[2,3] Int
-      b = F.array @'[3] [6..8] :: F.Array '[3] Int
-      r = F.telecasts (SNats @'[1]) (SNats @'[0]) (F.concatenate (SNat @0)) a b :: F.Array '[3,3] Int
-   in r == F.array @[3,3] [0,3,6,1,4,7,2,5,8]
+  let a = F.array @[2, 3] [0 .. 5] :: F.Array '[2, 3] Int
+      b = F.array @'[3] [6 .. 8] :: F.Array '[3] Int
+      r = F.telecasts (SNats @'[1]) (SNats @'[0]) (F.concatenate (SNat @0)) a b :: F.Array '[3, 3] Int
+   in r == F.array @[3, 3] [0, 3, 6, 1, 4, 7, 2, 5, 8]
 
 -- | Helper: extensional equality of function arrays.
 eqArrayFun :: forall s a. (KnownNats s, Eq a) => ArrayC (->) s a -> ArrayC (->) s a -> Bool
@@ -264,7 +266,8 @@ eqArrayMat ::
   ArrayC (Mat r) s a ->
   Bool
 eqArrayMat (ArrayC m) (ArrayC n) =
-  all (\(i, j) -> runMat m i j == runMat n i j)
+  all
+    (\(i, j) -> runMat m i j == runMat n i j)
     [(i, j) | i <- allFins @s, j <- universe]
 
 -- | Helper: extensional equality of index functions.
@@ -272,17 +275,17 @@ eqIx :: forall s a. (KnownNats s, Eq a) => (Fins s -> a) -> (Fins s -> a) -> Boo
 eqIx f g = all (\i -> f i == g i) (allFins @s)
 
 -- | Swap the two axes of a [2,3] array to a [3,2] array.
-swap23 :: IxMap '[3,2] '[2,3]
+swap23 :: IxMap '[3, 2] '[2, 3]
 swap23 (UnsafeFins [i, j]) = UnsafeFins [j, i]
 swap23 _ = error "swap23: unexpected index"
 
 -- | Swap the two axes of a [3,2] array back to a [2,3] array.
-swap32 :: IxMap '[2,3] '[3,2]
+swap32 :: IxMap '[2, 3] '[3, 2]
 swap32 (UnsafeFins [j, i]) = UnsafeFins [i, j]
 swap32 _ = error "swap32: unexpected index"
 
 -- | A sample function array for the function-base oracles.
-sampleFunArray :: ArrayC (->) '[2,3] Int
+sampleFunArray :: ArrayC (->) '[2, 3] Int
 sampleFunArray = tabulateC $ \fi ->
   case fromFins fi of
     [i, j] -> i * 10 + j
@@ -334,12 +337,12 @@ checkC20 =
 -- base category.
 checkC21 :: Bool
 checkC21 =
-  let f :: Fins '[2,3] -> Int
+  let f :: Fins '[2, 3] -> Int
       f fi = case fromFins fi of [i, j] -> i * 10 + j; _ -> error "checkC21: unexpected index"
-      arr :: ArrayC (->) '[2,3] Int
+      arr :: ArrayC (->) '[2, 3] Int
       arr = tabulateC f
    in eqIx (indexC arr) f
-        && eqArrayFun (tabulateC (indexC sampleFunArray) :: ArrayC (->) '[2,3] Int) sampleFunArray
+        && eqArrayFun (tabulateC (indexC sampleFunArray) :: ArrayC (->) '[2, 3] Int) sampleFunArray
 
 -- | C22 ⟜ join/separator iso for Mat arrays (A7).
 --
@@ -347,11 +350,11 @@ checkC21 =
 -- matrix can be recovered from its tabulated form.
 checkC22 :: Bool
 checkC22 =
-  let fM :: Fins '[2,3] -> F 2
+  let fM :: Fins '[2, 3] -> F 2
       fM fi = case fromFins fi of
         [i, j] -> F (UnsafeFin (mod (i + j) 2))
         _ -> error "checkC22: unexpected index"
-      arrM :: ArrayC (Mat Int) '[2,3] (F 2)
+      arrM :: ArrayC (Mat Int) '[2, 3] (F 2)
       arrM = tabulateC fM
    in eqIx (indexC arrM) fM && eqArrayMat (tabulateC (indexC arrM)) arrM
 
@@ -481,7 +484,6 @@ instance StarSemiring LS where
   star (LS 0) = LS 1
   star (LS n) = LS (n + 1)
 
-
 -- | C33 ⟜ Mat transpose is identity-on-objects and involutive.
 --
 -- Reversibility (dagger) flips the arrow but keeps the object labels.
@@ -526,3 +528,19 @@ checkC35 =
         && runMat (conjugateMat m) False True /= runMat m False True
         && runMat transposed True False == runMat m False True
         && runMat transposed False True /= runMat m False True
+
+-- | C36 ⟜ curry/uncurry reshape an index pair and are inverse.
+checkC36 :: Bool
+checkC36 =
+  let f :: Mat Int (Bool, Bool) Bool
+      f = Mat $ \(x, y) z -> bool 0 1 ((x && y) == z)
+      g = uncurry @(,) @(Mat Int) (curry @(,) @(Mat Int) f)
+   in and [runMat f i j == runMat g i j | i <- universe, j <- universe]
+
+-- | C37 ⟜ eval contracts the repeated index: (x, (x', y)) maps to y iff x == x'.
+checkC37 :: Bool
+checkC37 =
+  let ev = eval @(,) @(Mat Int)
+   in runMat ev (True, (True, False)) False == 1
+        && runMat ev (True, (False, False)) False == 0
+        && runMat ev (True, (True, True)) True == 1

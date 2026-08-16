@@ -160,6 +160,9 @@ module Circuit.Mat
     invtriM,
     inverseM,
     MatField (..),
+
+    -- * Linear implication
+    Lolli (..),
   )
 where
 
@@ -167,17 +170,15 @@ import Circuit.Category (Category (..), ObDict (..))
 import Circuit.Channel (Channel (..), Strength (..), Traced (..))
 import Circuit.Loop (Loop (..))
 import Circuit.Mat.Field
-import Circuit.Tensor (Action (..), Tensor (..), Unit)
+import Circuit.Tensor (Action (..), Lolli (..), Tensor (..), Unit)
 import Data.Bool (bool)
 import Data.List (foldl')
-import NumHask.Algebra.Additive (Subtractive (..))
-import NumHask.Algebra.Ring (Distributive, InvolutiveRing (..))
-import NumHask.Data.Complex (Complex (..))
 import Data.Void (Void, absurd)
-import NumHask.Algebra.Additive (Additive (..), sum)
+import NumHask.Algebra.Additive (Additive (..), Subtractive (..), sum)
 import NumHask.Algebra.Multiplicative (Multiplicative (..))
-import NumHask.Algebra.Ring (StarSemiring (..))
-import Prelude hiding (id, sum, (*), (+), (.))
+import NumHask.Algebra.Ring (Distributive, InvolutiveRing (..), StarSemiring (..))
+import NumHask.Data.Complex (Complex (..))
+import Prelude hiding (curry, id, sum, uncurry, (*), (+), (.))
 
 -- $setup
 --
@@ -206,6 +207,9 @@ instance Finite Void where
 
 instance (Finite a, Finite b) => Finite (Either a b) where
   universe = map Left universe ++ map Right universe
+
+instance (Finite a, Finite b) => Finite (a, b) where
+  universe = [(x, y) | x <- universe, y <- universe]
 
 -- | Matrix over a semiring @s@, indexed by @i@ (rows) and @j@ (columns).
 --
@@ -319,6 +323,16 @@ instance Tensor Either (Mat s) where
 -- 1
 instance Action Either (Mat s) where
   swap = Fun swapEither
+
+-- | Compact-closed implication on index pairs: @A ⊸ B@ is the space of
+-- matrix entries @(a, b)@.  'curry'/'uncurry' reshape; 'eval' contracts
+-- the repeated index (transpose + product).
+instance (Additive s, Multiplicative s) => Lolli (,) (Mat s) where
+  type LolliT (,) (Mat s) a b = (a, b)
+  lolli _ = Id
+  eval = Mat $ \(x, (x', y)) y' -> bool zero one (x == x' && y == y')
+  curry f = Mat $ \x (y, z) -> runMat f (x, y) z
+  uncurry g = Mat $ \(x, y) z -> runMat g x (y, z)
 
 -- | Arrow-level monoidal structure for 'Either' inside 'Mat'.
 instance (Additive s, Multiplicative s) => Channel Either (Mat s) where
@@ -435,7 +449,6 @@ traceMat m = mbc `addMat` ecomp (ecomp mac (starM maa)) mba
     mba = Mat (\i j -> runMat m (Right i) (Left j))
     mbc = Mat (\i j -> runMat m (Right i) (Right j))
     addMat x y = Mat (\i j -> runMat x i j + runMat y i j)
-
 
 -- ===========================================================================
 -- Involution structure: reversibility, duality, conjugation (Ex6)
