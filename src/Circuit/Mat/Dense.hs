@@ -31,7 +31,7 @@ import Harpie.Array as A
 import NumHask.Algebra.Additive (Additive (..), sum)
 import NumHask.Algebra.Multiplicative (Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
-import Prelude hiding ((+), (*), drop, foldl', length, repeat, sum, take, zipWith)
+import Prelude hiding (drop, foldl', length, repeat, sum, take, zipWith, (*), (+))
 import Prelude qualified as P
 
 -- | Square matrix stored as a rank-2 'Harpie.Array' in row-major order.
@@ -77,7 +77,8 @@ matTimes (Matrix a) (Matrix b) =
         False -> error "Circuit.Mat.Dense.matTimes: inner dimension mismatch"
         True ->
           Matrix $
-            A.tabulate [ra, cb]
+            A.tabulate
+              [ra, cb]
               ( \ij -> case ij of
                   [i, j] -> sum [a A.! [i, k] * b A.! [k, j] | k <- [0 .. ca - 1]]
                   _ -> error "Circuit.Mat.Dense.matTimes: expected rank-2 index"
@@ -98,7 +99,7 @@ matVec (Matrix a) v =
             False -> error "Circuit.Mat.Dense.matVec: dimension mismatch"
             True ->
               [ sum [a A.! [i, k] * (v P.!! k) | k <- [0 .. c - 1]]
-                | i <- [0 .. r - 1]
+              | i <- [0 .. r - 1]
               ]
     _ -> error "Circuit.Mat.Dense.matVec: expected a rank-2 matrix"
 
@@ -123,7 +124,8 @@ starMatrix (Matrix a) =
         [n, m]
           | n == m ->
               let step arr k =
-                    A.tabulate [n, n]
+                    A.tabulate
+                      [n, n]
                       ( \ij -> case ij of
                           [i, j] ->
                             let aik = A.index arr [i, k]
@@ -133,5 +135,11 @@ starMatrix (Matrix a) =
                              in aij + aik * star akk * akj
                           _ -> error "Circuit.Mat.Dense.starMatrix: expected rank-2 index"
                       )
-               in Matrix $ foldl' step a [0 .. n - 1]
+                  closed = foldl' step a [0 .. n - 1]
+               in -- Floyd-Kleene on A is A⁺. Seed I afterwards, matching 'starM':
+                  -- A* = I + A⁺.
+                  Matrix $
+                    A.tabulate [n, n] $ \ij -> case ij of
+                      [i, j] -> A.index closed [i, j] + bool zero one (i == j)
+                      _ -> error "Circuit.Mat.Dense.starMatrix: expected rank-2 index"
         _ -> error "Circuit.Mat.Dense.starMatrix: expected a square matrix"
