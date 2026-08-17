@@ -22,6 +22,7 @@ common ghc-options-stanza
     -Wall
     -Wno-unused-imports
     -Wno-unused-top-binds
+    -Wno-pattern-namespace-specifier
 
 library
   import: ghc-options-stanza

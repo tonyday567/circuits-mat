@@ -2,7 +2,6 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 -- | Matrix field calculus for dense, statically-shaped matrices.
@@ -32,8 +31,8 @@ module Circuit.Mat.Field
 where
 
 import GHC.TypeNats (KnownNat)
-import Harpie.Fixed qualified as F
 import Harpie.Fixed (Array, Matrix)
+import Harpie.Fixed qualified as F
 import Harpie.Shape (KnownNats)
 import Harpie.Shape qualified as S
 import NumHask.Algebra.Additive (Additive (..), sum)

@@ -4,9 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
-
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- | Arrays as the monoidal array category @[C; I]@ of Abbott & Zardini.
@@ -169,7 +167,7 @@ allFins = UnsafeFins <$> enumerateShape (valuesOf @s)
     enumerateShape [] = [[]]
     enumerateShape (n : ns) = [i : rest | i <- [0 .. n - 1], rest <- enumerateShape ns]
 
-instance KnownNats s => Finite (Fins s) where
+instance (KnownNats s) => Finite (Fins s) where
   universe = allFins @s
 
 instance Functor (ArrayC (->) s) where
