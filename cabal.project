@@ -1,7 +1,3 @@
-packages:
-  circuits-mat.cabal
-  ../circuits/circuits.cabal
-  ../harpie/harpie.cabal
-  ../numhask/numhask.cabal
+packages: circuits-mat.cabal
 
 write-ghc-environment-files: always
