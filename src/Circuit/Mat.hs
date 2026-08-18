@@ -147,6 +147,11 @@ module Circuit.Mat
     -- * Trace (explicit finite-channel form)
     traceMat,
 
+    -- * Linear implication (explicit finite-channel form)
+    evalMat,
+    curryMat,
+    uncurryMat,
+
     -- * Involution structure (Ex6: reversibility, duality, conjugation)
     Dual (..),
     transposeMat,
@@ -160,17 +165,14 @@ module Circuit.Mat
     invtriM,
     inverseM,
     MatField (..),
-
-    -- * Linear implication
-    Lolli (..),
   )
 where
 
-import Circuit.Category (Category (..), ObDict (..))
-import Circuit.Channel (Channel (..), Strength (..), Traced (..))
+import Circuit.Category (Category (..))
+import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Loop (Loop (..))
 import Circuit.Mat.Field
-import Circuit.Tensor (Action (..), Lolli (..), Tensor (..), Unit)
+import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.Bool (bool)
 import Data.List (foldl')
 import Data.Void (Void, absurd)
@@ -265,7 +267,6 @@ runMat ::
 runMat m i j = sum [x | (j', x) <- push [(i, one)] m, j' == j]
 
 instance Category (Mat s) where
-  type Ob (Mat s) a = Finite a
   id = Id
   (.) = Comp
 
@@ -327,12 +328,25 @@ instance Action Either (Mat s) where
 -- | Compact-closed implication on index pairs: @A ⊸ B@ is the space of
 -- matrix entries @(a, b)@.  'curry'/'uncurry' reshape; 'eval' contracts
 -- the repeated index (transpose + product).
-instance (Additive s, Multiplicative s) => Lolli (,) (Mat s) where
-  type LolliT (,) (Mat s) a b = (a, b)
-  lolli _ = Id
-  eval = Mat $ \(x, (x', y)) y' -> bool zero one (x == x' && y == y')
-  curry f = Mat $ \x (y, z) -> runMat f (x, y) z
-  uncurry g = Mat $ \(x, y) z -> runMat g x (y, z)
+--
+-- These are named constrained combinators rather than 'Lolli' class methods
+-- because the unconstrained tower no longer carries object evidence.
+evalMat ::
+  (Additive s, Multiplicative s, Eq a, Eq b, Finite a, Finite b) =>
+  Mat s (a, (a, b)) b
+evalMat = Mat $ \(x, (x', y)) y' -> bool zero one (x == x' && y == y')
+
+curryMat ::
+  (Additive s, Multiplicative s, Eq c, Finite a, Finite b, Finite c) =>
+  Mat s (a, b) c ->
+  Mat s a (b, c)
+curryMat f = Mat $ \x (y, z) -> runMat f (x, y) z
+
+uncurryMat ::
+  (Additive s, Multiplicative s, Eq b, Finite a, Finite b, Finite c) =>
+  Mat s a (b, c) ->
+  Mat s (a, b) c
+uncurryMat g = Mat $ \(x, y) z -> runMat g x (y, z)
 
 -- | Arrow-level monoidal structure for 'Either' inside 'Mat'.
 instance (Additive s, Multiplicative s) => Channel Either (Mat s) where
@@ -343,11 +357,6 @@ instance (Additive s, Multiplicative s) => Channel Either (Mat s) where
 -- | Tensorial strength for the 'Either' tensor on 'Mat'.
 instance (Additive s, Multiplicative s) => Strength Either (Mat s) where
   strength = Par Id
-
--- | Lawful 'Traced' for matrices: feedback channel carries 'Finite'
--- evidence via 'Ob (Mat s) a = Finite a'.
-instance (StarSemiring s, Additive s, Multiplicative s) => Traced Either (Mat s) where
-  trace = traceMat
 
 -- | Reflexive-transitive closure of a square matrix.
 --

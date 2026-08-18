@@ -18,7 +18,7 @@
 -- See coffee/loom/harpie-circuit-census.md.
 module Main (main) where
 
-import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Lolli (..), Mat (..), conjugateMat, dualMat, runMat, traceMat, transposeMat)
+import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateMat, curryMat, dualMat, evalMat, runMat, traceMat, transposeMat, uncurryMat)
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
@@ -534,13 +534,13 @@ checkC36 :: Bool
 checkC36 =
   let f :: Mat Int (Bool, Bool) Bool
       f = Mat $ \(x, y) z -> bool 0 1 ((x && y) == z)
-      g = uncurry @(,) @(Mat Int) (curry @(,) @(Mat Int) f)
+      g = uncurryMat (curryMat f)
    in and [runMat f i j == runMat g i j | i <- universe, j <- universe]
 
 -- | C37 ⟜ eval contracts the repeated index: (x, (x', y)) maps to y iff x == x'.
 checkC37 :: Bool
 checkC37 =
-  let ev = eval @(,) @(Mat Int)
+  let ev = evalMat @Int
    in runMat ev (True, (True, False)) False == 1
         && runMat ev (True, (False, False)) False == 0
         && runMat ev (True, (True, True)) True == 1

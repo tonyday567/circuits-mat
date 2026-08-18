@@ -125,7 +125,7 @@ instance Tabular (Mat r) where
 -- Precompose with an indexing morphism.  This is exactly harpie's
 -- @backpermute@, renamed to match the paper.
 reindex ::
-  (LiftFun arr, Ob arr (Fins s'), Ob arr (Fins s), Ob arr a) =>
+  (LiftFun arr) =>
   IxMap s' s ->
   ArrayC arr s a ->
   ArrayC arr s' a
@@ -135,7 +135,7 @@ reindex eta (ArrayC m) = ArrayC (m . liftFun eta)
 --
 -- Apply a base morphism at every index of the array.
 batch ::
-  (Category arr, Ob arr (Fins s), Ob arr a, Ob arr b) =>
+  (Category arr) =>
   arr a b ->
   ArrayC arr s a ->
   ArrayC arr s b
