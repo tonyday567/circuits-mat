@@ -339,12 +339,10 @@ instance (Additive s, Multiplicative s) => Channel Either (Mat s) where
   assoc = Fun assocEither
   assoc' = Fun assocEither'
   slide = Fun slideEither
-  withTensorOb ObDict ObDict x = x
 
 -- | Tensorial strength for the 'Either' tensor on 'Mat'.
 instance (Additive s, Multiplicative s) => Strength Either (Mat s) where
   strength = Par Id
-  withStrengthOb ObDict ObDict ObDict x = x
 
 -- | Lawful 'Traced' for matrices: feedback channel carries 'Finite'
 -- evidence via 'Ob (Mat s) a = Finite a'.
