@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RebindableSyntax #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
@@ -84,7 +85,7 @@ matTimes (Matrix a) (Matrix b) =
           Matrix $
             A.tabulate
               [ra, cb]
-              ( \ij -> case ij of
+              ( \case
                   [i, j] -> sum [a A.! [i, k] * b A.! [k, j] | k <- [0 .. ca - 1]]
                   _ -> error "Circuit.Mat.Dense.matTimes: expected rank-2 index"
               )
@@ -131,7 +132,7 @@ starMatrix (Matrix a) =
               let step arr k =
                     A.tabulate
                       [n, n]
-                      ( \ij -> case ij of
+                      ( \case
                           [i, j] ->
                             let aik = A.index arr [i, k]
                                 akk = A.index arr [k, k]
@@ -144,7 +145,7 @@ starMatrix (Matrix a) =
                in -- Floyd-Kleene on A is A⁺. Seed I afterwards, matching 'starM':
                   -- A* = I + A⁺.
                   Matrix $
-                    A.tabulate [n, n] $ \ij -> case ij of
+                    A.tabulate [n, n] $ \case
                       [i, j] -> A.index closed [i, j] + bool zero one (i == j)
                       _ -> error "Circuit.Mat.Dense.starMatrix: expected rank-2 index"
         _ -> error "Circuit.Mat.Dense.starMatrix: expected a square matrix"
@@ -229,7 +230,7 @@ updateSubmatrix m rowOff colOff sub =
       subSh = VU.toList (A.shape sub)
       rowsSub = subSh !! 0
       colsSub = subSh !! 1
-   in A.tabulate sh $ \ij -> case ij of
+   in A.tabulate sh $ \case
         [i, j]
           | i >= rowOff && i < rowOff + rowsSub && j >= colOff && j < colOff + colsSub ->
               sub A.! [i - rowOff, j - colOff]

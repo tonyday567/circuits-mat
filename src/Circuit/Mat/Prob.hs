@@ -18,7 +18,7 @@ import Circuit.Prob (Prob (..))
 import Data.Bool (bool)
 import NumHask.Algebra.Additive (Additive (..), sum, zero)
 import NumHask.Algebra.Multiplicative (Multiplicative (..), one)
-import Prelude hiding (id, (.), (*), (+), sum)
+import Prelude hiding (id, sum, (*), (+), (.))
 
 -- | Embed a semiring matrix into the @Prob@ continuation carrier.
 --

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -26,9 +27,6 @@ import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Complex (complexSMul)
 import Circuit.Mat.Dense (Matrix (..), forwardSubstStream, matTimes, qrM)
 import Circuit.Mat.Field (MatField (..), cholM, householderStep, inverseM, invtriM, luM, luRank1M)
-import NumHask.Algebra.Field (ExpField (..))
-import NumHask.Algebra.Lattice (Lattice)
-import NumHask.Algebra.Metric (Absolute, Epsilon, abs, aboutEqual)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Circuit.Mat.Prob (matToProb, runProbAt)
 import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), Shared (..))
@@ -39,6 +37,9 @@ import Harpie.Array qualified as A
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fin (..), Fins (..), KnownNats (..), SNat, SNats, indexWindowsL, pattern SNat, pattern SNats)
 import NumHask.Algebra.Additive (Additive (..), Subtractive, sum)
+import NumHask.Algebra.Field (ExpField (..))
+import NumHask.Algebra.Lattice (Lattice)
+import NumHask.Algebra.Metric (Absolute, Epsilon, aboutEqual, abs)
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
 import NumHask.Data.Complex (Complex, (+:))
@@ -773,7 +774,13 @@ checkD5 =
   let l = A.array [3, 3] [1, 0, 0, 2, 1, 0, 3, 4, 1] :: A.Array Double
       b = A.array [3] [1, 2, 3] :: A.Array Double
       y = forwardSubstStream l b
-      ly = A.tabulate [3] (\[i] -> sum [l A.! [i, j] * y A.! [j] | j <- [0 .. i]])
+      ly =
+        A.tabulate
+          [3]
+          ( \case
+              [i] -> sum [l A.! [i, j] * y A.! [j] | j <- [0 .. i]]
+              _ -> error "unreachable" -- A.tabulate over [3] always supplies a single index
+          )
    in matrixAboutEqual (Matrix ly) (Matrix b)
 
 -- | Elementwise approximate equality of two value-sized matrices.

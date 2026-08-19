@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -41,7 +40,7 @@ where
 import Data.Bool (bool)
 import Data.List (lookup, sort)
 import GHC.TypeNats (KnownNat, Nat)
-import qualified GHC.TypeNats as TN
+import GHC.TypeNats qualified as TN
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fins (..), KnownNats, valuesOf)
 import Prelude
@@ -76,7 +75,7 @@ affine ::
   Maybe (Affine p q)
 affine lam off
   | not shapeOK = Nothing
-  | any (< 0) (concat lam) = Nothing
+  | any (any (< 0)) lam = Nothing
   | any (< 0) off = Nothing
   | not offsetsOK = Nothing
   | otherwise = Just (Affine lam off)
@@ -85,7 +84,7 @@ affine lam off
     sq = valuesOf @q
     shapeOK =
       length lam == length sq
-        && all (== length sp) (map length lam)
+        && all ((== length sp) . length) lam
     offsetsOK = and (zipWith (<) off sq)
 
 -- | Identity affine map.
@@ -197,7 +196,7 @@ toHarpieBackpermute a arr = F.backpermute inverseFins arr
         Nothing -> error "toHarpieBackpermute: affine map is not a bijection on indices"
     inverseMap =
       [ (applyAffine a ps, ps)
-        | ps <- shapeIndices (valuesOf @p)
+      | ps <- shapeIndices (valuesOf @p)
       ]
 
 -- | All index vectors for a shape.

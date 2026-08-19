@@ -239,14 +239,16 @@ luRank1M a = (p, l, u)
           c :: F.Array '[n] a
           c =
             F.tabulate $ \s -> case S.fromFins s of
-              [i] | i > k -> mult i
-                  | otherwise -> zero
+              [i]
+                | i > k -> mult i
+                | otherwise -> zero
               _ -> error "luRank1M: expected rank-1 index"
           r :: F.Array '[n] a
           r =
             F.tabulate $ \s -> case S.fromFins s of
-              [j] | j >= k -> m1 F.! [k, j]
-                  | otherwise -> zero
+              [j]
+                | j >= k -> m1 F.! [k, j]
+                | otherwise -> zero
               _ -> error "luRank1M: expected rank-1 index"
           m2 = F.zipWith (-) m1 (F.expand (*) c r)
           l2 =
