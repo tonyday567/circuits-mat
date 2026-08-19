@@ -34,13 +34,15 @@ module Circuit.Mat.Affine
 
     -- * Harpie seam
     toIndexMap,
+    toHarpieBackpermute,
   )
 where
 
 import Data.Bool (bool)
-import Data.List (sort)
+import Data.List (lookup, sort)
 import GHC.TypeNats (KnownNat, Nat)
 import qualified GHC.TypeNats as TN
+import Harpie.Fixed qualified as F
 import Harpie.Shape (Fins (..), KnownNats, valuesOf)
 import Prelude
 
@@ -171,3 +173,33 @@ permuteAxes perm
 -- | Apply the affine map to harpie 'Fins'.
 toIndexMap :: Affine p q -> Fins p -> Fins q
 toIndexMap a (UnsafeFins x) = UnsafeFins (applyAffine a x)
+
+-- | Build a harpie 'F.backpermute' from an affine map.
+--
+-- This is the code generator: an affine reindexing becomes a harpie
+-- backpermute with an index-map derived from the affine inverse.  The map is
+-- precomputed, so the result fuses with surrounding harpie operations.
+--
+-- Precondition: the affine map must be a bijection between the index sets
+-- (true for flatten, permutation, and axis-swap).  If it is not, the lookup
+-- will fail at runtime.
+toHarpieBackpermute ::
+  forall p q s.
+  (KnownNats p, KnownNats q) =>
+  Affine p q ->
+  F.Array p s ->
+  F.Array q s
+toHarpieBackpermute a arr = F.backpermute inverseFins arr
+  where
+    inverseFins (UnsafeFins q) =
+      case lookup q inverseMap of
+        Just p -> UnsafeFins p
+        Nothing -> error "toHarpieBackpermute: affine map is not a bijection on indices"
+    inverseMap =
+      [ (applyAffine a ps, ps)
+        | ps <- shapeIndices (valuesOf @p)
+      ]
+
+-- | All index vectors for a shape.
+shapeIndices :: [Int] -> [[Int]]
+shapeIndices = mapM (\d -> [0 .. d - 1])

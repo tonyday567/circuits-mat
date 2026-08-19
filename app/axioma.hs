@@ -19,7 +19,7 @@
 module Main (main) where
 
 import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateMat, curryMat, dualMat, evalMat, runMat, traceMat, transposeMat, uncurryMat)
-import Circuit.Mat.Affine (affine, applyAffine, composeAffine, identityAffine, swapAxesAffine)
+import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, identityAffine, swapAxesAffine, toHarpieBackpermute)
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
@@ -82,7 +82,9 @@ main = do
         ("C38 Affine identity/composition roundtrip", checkC38),
         ("C39 Affine swap-axes roundtrip", checkC39),
         ("C40 Mat -> Prob carrier agreement on a stochastic matrix", checkC40),
-        ("C41 Dot-product construction agrees on harpie and Prob carriers", checkC41)
+        ("C41 Dot-product construction agrees on harpie and Prob carriers", checkC41),
+        ("C42 Affine flatten compiles to harpie reshape", checkC42),
+        ("C43 Affine axis-swap compiles to harpie transpose", checkC43)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -591,3 +593,17 @@ checkC41 =
       j = finF @1 0
    in runMat dotMat i j == runProbAt (matToProb dotMat) i j
         && runMat dotMat i j == expected
+
+-- | C42 ⟜ An affine flatten reindexing compiles to the harpie 'reshape' a
+-- human would write.
+checkC42 :: Bool
+checkC42 =
+  let arr23 = F.range @'[2, 3] :: F.Array '[2, 3] Int
+   in toHarpieBackpermute (flattenAffine @'[2, 3]) arr23 == F.reshape @'[6] arr23
+
+-- | C43 ⟜ An affine axis-swap compiles to the harpie 'transpose' a human
+-- would write.
+checkC43 :: Bool
+checkC43 =
+  let arr23 = F.range @'[2, 3] :: F.Array '[2, 3] Int
+   in toHarpieBackpermute (swapAxesAffine @2 @3) arr23 == F.transpose arr23
