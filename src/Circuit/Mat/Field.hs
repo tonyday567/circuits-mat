@@ -25,6 +25,7 @@ module Circuit.Mat.Field
     invtriM,
     inverseM,
     luM,
+    luRank1M,
 
     -- * Matrix-as-ring wrapper
     MatField (..),
@@ -196,6 +197,77 @@ luM a = (p, l, u)
           | i <= j -> m F.! [i, j]
           | otherwise -> zero
         _ -> error "luM: expected rank-2 index"
+
+-- | LU decomposition via iterated rank-1 updates.
+--
+-- This is the same factorisation as 'luM', but the Schur-complement step is
+-- written explicitly as an outer-product contraction:
+--
+-- > A' = A - c ⊗ r
+--
+-- where @c@ is the column of multipliers below the pivot and @r@ is the pivot
+-- row.  The outer product uses 'F.expand' and the subtraction is elementwise;
+-- together they are the matrix-level reading of the trace / feedback pattern.
+--
+-- The result agrees with 'luM' on any invertible square matrix.
+luRank1M ::
+  forall n a.
+  ( KnownNat n,
+    KnownNats '[n, n],
+    Additive a,
+    Subtractive a,
+    Multiplicative a,
+    Divisive a,
+    Absolute a,
+    Ord a,
+    Show a
+  ) =>
+  MatrixM n a ->
+  (MatrixM n a, MatrixM n a, MatrixM n a)
+luRank1M a = (p, l, u)
+  where
+    n = S.valueOf @n
+    ((p, m), lAcc) = foldl step ((F.ident @[n, n], a), F.konst @[n, n] zero) [0 .. n - 2]
+    step ((p0, m0), l0) k =
+      let pivotRow = maximumBy (comparing (\i -> abs (m0 F.! [i, k]))) [k .. n - 1]
+          p1 = swapRows k pivotRow p0
+          m1 = swapRows k pivotRow m0
+          l1 = swapRows k pivotRow l0
+          pivot = m1 F.! [k, k]
+          mult i = m1 F.! [i, k] / pivot
+          c :: F.Array '[n] a
+          c =
+            F.tabulate $ \s -> case S.fromFins s of
+              [i] | i > k -> mult i
+                  | otherwise -> zero
+              _ -> error "luRank1M: expected rank-1 index"
+          r :: F.Array '[n] a
+          r =
+            F.tabulate $ \s -> case S.fromFins s of
+              [j] | j >= k -> m1 F.! [k, j]
+                  | otherwise -> zero
+              _ -> error "luRank1M: expected rank-1 index"
+          m2 = F.zipWith (-) m1 (F.expand (*) c r)
+          l2 =
+            F.tabulate $ \s -> case S.fromFins s of
+              [i, j]
+                | j == k && i > k -> mult i
+                | otherwise -> l1 F.! [i, j]
+              _ -> error "luRank1M: expected rank-2 index"
+       in ((p1, m2), l2)
+    l =
+      F.tabulate $ \s -> case S.fromFins s of
+        [i, j]
+          | i == j -> one
+          | i > j -> lAcc F.! [i, j]
+          | otherwise -> zero
+        _ -> error "luRank1M: expected rank-2 index"
+    u =
+      F.tabulate $ \s -> case S.fromFins s of
+        [i, j]
+          | i <= j -> m F.! [i, j]
+          | otherwise -> zero
+        _ -> error "luRank1M: expected rank-2 index"
 
 -- | Swap two rows of a matrix.
 swapRows ::

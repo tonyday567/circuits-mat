@@ -24,7 +24,7 @@ import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, id
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Complex (complexSMul)
-import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM, luM)
+import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM, luM, luRank1M)
 import NumHask.Algebra.Lattice (Lattice)
 import NumHask.Algebra.Metric (Epsilon, aboutEqual)
 import Circuit.Mat.Harpie (F (..), finF, matF)
@@ -96,7 +96,8 @@ main = do
         ("C46 Mat structure-constant contraction matches expected complex product", checkC46),
         ("C47 Harpie prod structure-constant contraction matches expected", checkC47),
         ("C48 Mat and harpie complex multiplication agree", checkC48),
-        ("D1 LU with partial pivoting recovers A = P^T L U", checkD1)
+        ("D1 LU with partial pivoting recovers A = P^T L U", checkD1),
+        ("D2 LU as iterated rank-1 update agrees with reference luM", checkD2)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -709,6 +710,20 @@ checkD1 =
       (p, l, u) = luM a
       recovered = F.mult (F.transpose p) (F.mult l u)
    in matAboutEqual a recovered
+
+-- | D2 ⟜ LU expressed as iterated rank-1 updates agrees with the reference.
+--
+-- 'luRank1M' performs the same pivoting and arithmetic as 'luM', but the
+-- Schur-complement step is written as the outer-product contraction
+-- @A' = A - c ⊗ r@.  The two implementations must return the same @P@, @L@,
+-- and @U@.
+checkD2 :: Bool
+checkD2 =
+  let a :: F.Array '[3, 3] Double
+      a = F.array @[3, 3] [2, 1, 1, 4, 3, 1, 8, 7, 2]
+      (p1, l1, u1) = luM a
+      (p2, l2, u2) = luRank1M a
+   in p1 == p2 && l1 == l2 && u1 == u2
 
 -- | Elementwise approximate equality of two matrices.
 matAboutEqual ::
