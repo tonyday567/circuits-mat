@@ -18,7 +18,7 @@
 -- See coffee/loom/harpie-circuit-census.md.
 module Main (main) where
 
-import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateMat, curryMat, dualMat, evalMat, runMat, traceMat, transposeMat, uncurryMat)
+import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateMat, curryMat, dot, dualMat, evalMat, runMat, traceMat, transposeMat, uncurryMat)
 import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, identityAffine, swapAxesAffine, toHarpieBackpermute)
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
@@ -84,7 +84,8 @@ main = do
         ("C40 Mat -> Prob carrier agreement on a stochastic matrix", checkC40),
         ("C41 Dot-product construction agrees on harpie and Prob carriers", checkC41),
         ("C42 Affine flatten compiles to harpie reshape", checkC42),
-        ("C43 Affine axis-swap compiles to harpie transpose", checkC43)
+        ("C43 Affine axis-swap compiles to harpie transpose", checkC43),
+        ("C44 Dot product via Par/trace with no row/column naming", checkC44)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -607,3 +608,13 @@ checkC43 :: Bool
 checkC43 =
   let arr23 = F.range @'[2, 3] :: F.Array '[2, 3] Int
    in toHarpieBackpermute (swapAxesAffine @2 @3) arr23 == F.transpose arr23
+
+-- | C44 ⟜ Dot product written with only 'Par', swap, and 'traceMat': no
+-- row/column or dimension-index vocabulary.
+checkC44 :: Bool
+checkC44 =
+  let f :: F 4 -> DS
+      f (F (UnsafeFin k)) = DS (aval !! k)
+      g :: F 4 -> DS
+      g (F (UnsafeFin k)) = DS (bval !! k)
+   in dot f g == DS expected

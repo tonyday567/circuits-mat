@@ -147,6 +147,9 @@ module Circuit.Mat
     -- * Trace (explicit finite-channel form)
     traceMat,
 
+    -- * Contraction
+    dot,
+
     -- * Linear implication (explicit finite-channel form)
     evalMat,
     curryMat,
@@ -456,6 +459,25 @@ traceMat m = mbc `addMat` ecomp (ecomp mac (starM maa)) mba
     mba = Mat (\i j -> runMat m (Right i) (Left j))
     mbc = Mat (\i j -> runMat m (Right i) (Right j))
     addMat x y = Mat (\i j -> runMat x i j + runMat y i j)
+
+-- | Categorical dot product of two vectors over the same finite index set.
+--
+-- Both vectors are given as functions from the index set to the semiring.  The
+-- construction uses only 'Par', the coproduct swap, and 'traceMat' — no
+-- row/column naming, no dimension indices.
+--
+-- The feedback channel in the trace is the shared index set @a@; because the
+-- block on that channel is zero, 'star' reduces to 'one' and the Schur
+-- complement becomes the sum of products.
+dot ::
+  (StarSemiring s, Additive s, Multiplicative s, Eq a, Finite a) =>
+  (a -> s) ->
+  (a -> s) ->
+  s
+dot f g = runMat (traceMat (Comp (Par col row) (Fun swapEither))) () ()
+  where
+    col = Mat (\() j -> f j)
+    row = Mat (\i () -> g i)
 
 -- ===========================================================================
 -- Involution structure: reversibility, duality, conjugation (Ex6)
