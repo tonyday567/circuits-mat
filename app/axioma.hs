@@ -25,8 +25,10 @@ import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Circuit.Mat.Prob (matToProb, runProbAt)
+import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), Shared (..))
 import Data.Bool (bool)
 import Data.Maybe (fromJust)
+import Data.These (These (..))
 import Harpie.Array qualified as A
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fin (..), Fins (..), KnownNats (..), SNat, SNats, indexWindowsL, pattern SNat, pattern SNats)
@@ -85,7 +87,8 @@ main = do
         ("C41 Dot-product construction agrees on harpie and Prob carriers", checkC41),
         ("C42 Affine flatten compiles to harpie reshape", checkC42),
         ("C43 Affine axis-swap compiles to harpie transpose", checkC43),
-        ("C44 Dot product via Par/trace with no row/column naming", checkC44)
+        ("C44 Dot product via Par/trace with no row/column naming", checkC44),
+        ("C45 Complex multiplication as Shared-medium fusion", checkC45)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -618,3 +621,23 @@ checkC44 =
       g :: F 4 -> DS
       g (F (UnsafeFin k)) = DS (bval !! k)
    in dot f g == DS expected
+
+-- | C45 ⟜ Complex multiplication as shared-medium fusion (⅋).
+--
+-- The real and imaginary bodies share the two input complex numbers as state.
+-- The schedule fires both poles, producing a total 'These' product: real part
+-- from @ac - bd@, imaginary part from @ad + bc@.
+checkC45 :: Bool
+checkC45 =
+  let s0 = ((1, 2), (3, 4)) :: ((Double, Double), (Double, Double))
+      realBody (s, ()) = (s, a * c - b * d)
+        where
+          ((a, b), (c, d)) = s
+      imagBody (s, ()) = (s, a * d + b * c)
+        where
+          ((a, b), (c, d)) = s
+      sched = Schedule (\s -> (s, Both LeftFirst))
+      (_, result) = sharedBy sched realBody imagBody (s0, ((), ()))
+   in case result of
+        These (-5.0) 10.0 -> True
+        _ -> False

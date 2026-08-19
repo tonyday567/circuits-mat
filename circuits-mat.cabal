@@ -55,6 +55,8 @@ executable circuits-mat-axioma
   hs-source-dirs: app
   build-depends:
     base >=4.18 && <5,
+    circuits >=0.3 && <0.5,
     circuits-mat,
     harpie >=0.3 && <0.4,
     numhask >=0.13 && <0.15,
+    these,
