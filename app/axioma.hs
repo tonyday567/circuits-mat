@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
 -- | Exact deterministic oracles for the circuits-mat ⟜ harpie boundary.
@@ -23,7 +24,9 @@ import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, id
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Complex (complexSMul)
-import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
+import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM, luM)
+import NumHask.Algebra.Lattice (Lattice)
+import NumHask.Algebra.Metric (Epsilon, aboutEqual)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Circuit.Mat.Prob (matToProb, runProbAt)
 import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), Shared (..))
@@ -33,7 +36,7 @@ import Data.These (These (..))
 import Harpie.Array qualified as A
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fin (..), Fins (..), KnownNats (..), SNat, SNats, indexWindowsL, pattern SNat, pattern SNats)
-import NumHask.Algebra.Additive (Additive (..))
+import NumHask.Algebra.Additive (Additive (..), Subtractive)
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
 import NumHask.Data.Complex (Complex, (+:))
@@ -92,7 +95,8 @@ main = do
         ("C45 Complex multiplication as Shared-medium fusion", checkC45),
         ("C46 Mat structure-constant contraction matches expected complex product", checkC46),
         ("C47 Harpie prod structure-constant contraction matches expected", checkC47),
-        ("C48 Mat and harpie complex multiplication agree", checkC48)
+        ("C48 Mat and harpie complex multiplication agree", checkC48),
+        ("D1 LU with partial pivoting recovers A = P^T L U", checkD1)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -691,3 +695,26 @@ checkC48 =
       outer = F.expand (*) harpieA harpieB
       harpieResult = F.prod (F.Dims @'[1, 2]) (F.Dims @'[0, 1]) (foldr (+) 0) (*) c outer
    in matResult == [F.unsafeIndex harpieResult [0], F.unsafeIndex harpieResult [1]]
+
+-- | D1 ⟜ LU decomposition with partial pivoting recovers the original matrix.
+--
+-- The factorisation is @a = p^T . l . u@, where @p@ is the permutation
+-- accumulated during pivoting, @l@ is unit lower triangular, and @u@ is upper
+-- triangular.  The recovery is checked with approximate equality because the
+-- intermediate divisions can introduce rounding in floating-point.
+checkD1 :: Bool
+checkD1 =
+  let a :: F.Array '[3, 3] Double
+      a = F.array @[3, 3] [2, 1, 1, 4, 3, 1, 8, 7, 2]
+      (p, l, u) = luM a
+      recovered = F.mult (F.transpose p) (F.mult l u)
+   in matAboutEqual a recovered
+
+-- | Elementwise approximate equality of two matrices.
+matAboutEqual ::
+  forall s a.
+  (KnownNats s, Epsilon a, Lattice a, Subtractive a) =>
+  F.Array s a ->
+  F.Array s a ->
+  Bool
+matAboutEqual x y = all (\ix -> aboutEqual (F.index x ix) (F.index y ix)) (allFins @s)

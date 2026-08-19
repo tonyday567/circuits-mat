@@ -24,12 +24,15 @@ module Circuit.Mat.Field
     cholM,
     invtriM,
     inverseM,
+    luM,
 
     -- * Matrix-as-ring wrapper
     MatField (..),
   )
 where
 
+import Data.List (maximumBy)
+import Data.Ord (comparing)
 import GHC.TypeNats (KnownNat)
 import Harpie.Fixed (Array, Matrix)
 import Harpie.Fixed qualified as F
@@ -37,6 +40,7 @@ import Harpie.Shape (KnownNats)
 import Harpie.Shape qualified as S
 import NumHask.Algebra.Additive (Additive (..), sum)
 import NumHask.Algebra.Field (ExpField (..))
+import NumHask.Algebra.Metric (Absolute, abs)
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Prelude hiding (sum)
 
@@ -135,6 +139,78 @@ inverseM ::
   MatrixM n a ->
   MatrixM n a
 inverseM a = F.mult (invtriM (F.transpose (cholM a))) (invtriM (cholM a))
+
+-- | LU decomposition with partial pivoting.
+--
+-- Returns @(p, l, u)@ such that @a = p^T . l . u@, where @p@ is the
+-- accumulated row-permutation matrix, @l@ is unit lower triangular, and @u@ is
+-- upper triangular.  The algorithm is the standard iterative Schur-complement
+-- update: at each pivot @k@, swap the pivot row into place, then eliminate the
+-- rows below by a rank-1 update.
+--
+-- The Schur step @a' = a - c . r@ is an outer product followed by subtraction,
+-- which is the matrix-level reading of the trace / feedback pattern used in
+-- circuit constructions.
+luM ::
+  forall n a.
+  ( KnownNat n,
+    KnownNats '[n, n],
+    Additive a,
+    Subtractive a,
+    Multiplicative a,
+    Divisive a,
+    Absolute a,
+    Ord a,
+    Show a
+  ) =>
+  MatrixM n a ->
+  (MatrixM n a, MatrixM n a, MatrixM n a)
+luM a = (p, l, u)
+  where
+    n = S.valueOf @n
+    (p, m) = foldl step (F.ident @[n, n], a) [0 .. n - 2]
+    step (p0, m0) k =
+      let pivotRow = maximumBy (comparing (\i -> abs (m0 F.! [i, k]))) [k .. n - 1]
+          p1 = swapRows k pivotRow p0
+          m1 = swapRows k pivotRow m0
+          m2 =
+            F.tabulate $ \s -> case S.fromFins s of
+              [i, j]
+                | i > k && j > k ->
+                    let mult = m1 F.! [i, k] / m1 F.! [k, k]
+                     in m1 F.! [i, j] - mult * m1 F.! [k, j]
+                | i > k && j == k -> m1 F.! [i, k] / m1 F.! [k, k]
+                | otherwise -> m1 F.! [i, j]
+              _ -> error "luM: expected rank-2 index"
+       in (p1, m2)
+    l =
+      F.tabulate $ \s -> case S.fromFins s of
+        [i, j]
+          | i == j -> one
+          | i > j -> m F.! [i, j]
+          | otherwise -> zero
+        _ -> error "luM: expected rank-2 index"
+    u =
+      F.tabulate $ \s -> case S.fromFins s of
+        [i, j]
+          | i <= j -> m F.! [i, j]
+          | otherwise -> zero
+        _ -> error "luM: expected rank-2 index"
+
+-- | Swap two rows of a matrix.
+swapRows ::
+  forall n a.
+  (KnownNats '[n, n]) =>
+  Int ->
+  Int ->
+  MatrixM n a ->
+  MatrixM n a
+swapRows k p = F.unsafeBackpermute $ \case
+  [i, j]
+    | i == k -> [p, j]
+    | i == p -> [k, j]
+    | otherwise -> [i, j]
+  _ -> error "swapRows: expected rank-2 index"
 
 -- | Inversion of a triangular matrix.
 --
