@@ -33,6 +33,7 @@ library
     Circuit.Mat.Affine
     Circuit.Mat.Array
     Circuit.Mat.Array.Stream
+    Circuit.Mat.Complex
     Circuit.Mat.Dense
     Circuit.Mat.Field
     Circuit.Mat.Harpie

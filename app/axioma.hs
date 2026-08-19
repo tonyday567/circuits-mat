@@ -22,6 +22,7 @@ import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateM
 import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, identityAffine, swapAxesAffine, toHarpieBackpermute)
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
+import Circuit.Mat.Complex (complexSMul)
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Circuit.Mat.Prob (matToProb, runProbAt)
@@ -88,7 +89,10 @@ main = do
         ("C42 Affine flatten compiles to harpie reshape", checkC42),
         ("C43 Affine axis-swap compiles to harpie transpose", checkC43),
         ("C44 Dot product via Par/trace with no row/column naming", checkC44),
-        ("C45 Complex multiplication as Shared-medium fusion", checkC45)
+        ("C45 Complex multiplication as Shared-medium fusion", checkC45),
+        ("C46 Mat structure-constant contraction matches expected complex product", checkC46),
+        ("C47 Harpie prod structure-constant contraction matches expected", checkC47),
+        ("C48 Mat and harpie complex multiplication agree", checkC48)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -641,3 +645,49 @@ checkC45 =
    in case result of
         These (-5.0) 10.0 -> True
         _ -> False
+
+-- | C46 ⟜ The @Mat@ structure-constant contraction produces the expected
+-- complex product.
+checkC46 :: Bool
+checkC46 =
+  let a :: F 2 -> Double
+      a (F (UnsafeFin 0)) = 1
+      a (F (UnsafeFin 1)) = 2
+      a _ = 0
+      b :: F 2 -> Double
+      b (F (UnsafeFin 0)) = 3
+      b (F (UnsafeFin 1)) = 4
+      b _ = 0
+      re = complexSMul a b (finF @2 0)
+      im = complexSMul a b (finF @2 1)
+   in re == -5 && im == 10
+
+-- | C47 ⟜ Harpie's @prod@ against the structure-constant tensor produces the
+-- same complex product.
+checkC47 :: Bool
+checkC47 =
+  let a = F.array @'[2] [1, 2] :: F.Array '[2] Double
+      b = F.array @'[2] [3, 4] :: F.Array '[2] Double
+      c = F.array @[2, 2, 2] [1, 0, 0, -1, 0, 1, 1, 0] :: F.Array '[2, 2, 2] Double
+      outer = F.expand (*) a b
+      r = F.prod (F.Dims @'[1, 2]) (F.Dims @'[0, 1]) (foldr (+) 0) (*) c outer
+   in F.unsafeIndex r [0] == -5 && F.unsafeIndex r [1] == 10
+
+-- | C48 ⟜ The @Mat@ and harpie structure-constant contractions agree.
+checkC48 :: Bool
+checkC48 =
+  let a :: F 2 -> Double
+      a (F (UnsafeFin 0)) = 1
+      a (F (UnsafeFin 1)) = 2
+      a _ = 0
+      b :: F 2 -> Double
+      b (F (UnsafeFin 0)) = 3
+      b (F (UnsafeFin 1)) = 4
+      b _ = 0
+      matResult = [complexSMul a b (finF @2 0), complexSMul a b (finF @2 1)]
+      harpieA = F.array @'[2] [1, 2] :: F.Array '[2] Double
+      harpieB = F.array @'[2] [3, 4] :: F.Array '[2] Double
+      c = F.array @[2, 2, 2] [1, 0, 0, -1, 0, 1, 1, 0] :: F.Array '[2, 2, 2] Double
+      outer = F.expand (*) harpieA harpieB
+      harpieResult = F.prod (F.Dims @'[1, 2]) (F.Dims @'[0, 1]) (foldr (+) 0) (*) c outer
+   in matResult == [F.unsafeIndex harpieResult [0], F.unsafeIndex harpieResult [1]]
