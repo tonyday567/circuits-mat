@@ -24,6 +24,7 @@ import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, id
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Complex (complexSMul)
+import Circuit.Mat.Dense (Matrix (..), matTimes, qrM)
 import Circuit.Mat.Field (MatField (..), cholM, householderStep, inverseM, invtriM, luM, luRank1M)
 import NumHask.Algebra.Field (ExpField (..))
 import NumHask.Algebra.Lattice (Lattice)
@@ -99,7 +100,8 @@ main = do
         ("C48 Mat and harpie complex multiplication agree", checkC48),
         ("D1 LU with partial pivoting recovers A = P^T L U", checkD1),
         ("D2 LU as iterated rank-1 update agrees with reference luM", checkD2),
-        ("D3 Householder reflection zeroes the subdiagonal of a column", checkD3)
+        ("D3 Householder reflection zeroes the subdiagonal of a column", checkD3),
+        ("D4 QR decomposition recovers A = Q R with orthogonal Q", checkD4)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -748,7 +750,29 @@ checkD3 =
         && aboutEqual (col0 F.! [1]) 0
         && aboutEqual (col0 F.! [2]) 0
 
--- | Elementwise approximate equality of two matrices.
+-- | D4 ⟜ QR decomposition recovers the original matrix with an orthogonal Q.
+--
+-- Uses the value-sized 'Harpie.Array' API.  The oracle checks both @A = Q R@
+-- and @Q^T Q = I@ with approximate equality.
+checkD4 :: Bool
+checkD4 =
+  let a = A.array [4, 3] [2, 1, 1, 4, 3, 1, 8, 7, 2, 6, 5, 4] :: A.Array Double
+      (Matrix q, Matrix r) = qrM (Matrix a)
+      qtq = matTimes (Matrix (A.transpose q)) (Matrix q)
+      ident = Matrix (A.ident [4, 4])
+      qr = matTimes (Matrix q) (Matrix r)
+   in matrixAboutEqual qr (Matrix a) && matrixAboutEqual qtq ident
+
+-- | Elementwise approximate equality of two value-sized matrices.
+matrixAboutEqual ::
+  (Epsilon a, Lattice a, Subtractive a) =>
+  Matrix a ->
+  Matrix a ->
+  Bool
+matrixAboutEqual (Matrix x) (Matrix y) =
+  A.shape x == A.shape y && and (A.zipWith aboutEqual x y)
+
+-- | Elementwise approximate equality of two fixed-shape matrices.
 matAboutEqual ::
   forall s a.
   (KnownNats s, Epsilon a, Lattice a, Subtractive a) =>

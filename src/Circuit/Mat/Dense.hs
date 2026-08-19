@@ -20,6 +20,7 @@ module Circuit.Mat.Dense
     matTimes,
     matVec,
     starMatrix,
+    qrM,
   )
 where
 
@@ -28,10 +29,12 @@ import Data.Foldable hiding (sum)
 import Data.List (foldl')
 import Data.Vector.Unboxed qualified as VU
 import Harpie.Array as A
-import NumHask.Algebra.Additive (Additive (..), sum)
-import NumHask.Algebra.Multiplicative (Multiplicative (..))
+import NumHask.Algebra.Additive (Additive (..), Subtractive (..), sum)
+import NumHask.Algebra.Field (ExpField (..))
+import NumHask.Algebra.Metric (Absolute, abs)
+import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
-import Prelude hiding (drop, foldl', length, repeat, sum, take, zipWith, (*), (+))
+import Prelude hiding (drop, foldl', length, negate, repeat, sqrt, sum, take, zipWith, (*), (+), (-), (/))
 import Prelude qualified as P
 
 -- | Square matrix stored as a rank-2 'Harpie.Array' in row-major order.
@@ -143,3 +146,90 @@ starMatrix (Matrix a) =
                       [i, j] -> A.index closed [i, j] + bool zero one (i == j)
                       _ -> error "Circuit.Mat.Dense.starMatrix: expected rank-2 index"
         _ -> error "Circuit.Mat.Dense.starMatrix: expected a square matrix"
+
+-- | QR decomposition via Householder reflections.
+--
+-- Returns @(q, r)@ with @q@ orthogonal and @r@ upper triangular such that
+-- @a = q r@.  The algorithm is the standard column-by-column Householder
+-- reduction on value-sized 'Harpie.Array' matrices.
+qrM ::
+  ( Additive a,
+    Subtractive a,
+    Multiplicative a,
+    Divisive a,
+    ExpField a,
+    Absolute a,
+    Ord a,
+    Show a
+  ) =>
+  Matrix a ->
+  (Matrix a, Matrix a)
+qrM (Matrix a) =
+  let sh = VU.toList (A.shape a)
+   in case sh of
+        [m, n] ->
+          let q0 = Matrix (A.ident [m, m])
+              r0 = Matrix a
+              steps = [0 .. P.min m n - 1]
+              (q, r) = foldl' (householderQRStep m n) (q0, r0) steps
+           in (q, r)
+        _ -> error "Circuit.Mat.Dense.qrM: expected a rank-2 matrix"
+
+-- | One Householder QR step for column @k@.
+householderQRStep ::
+  ( Additive a,
+    Subtractive a,
+    Multiplicative a,
+    Divisive a,
+    ExpField a,
+    Absolute a,
+    Ord a,
+    Show a
+  ) =>
+  Int ->
+  Int ->
+  (Matrix a, Matrix a) ->
+  Int ->
+  (Matrix a, Matrix a)
+householderQRStep m n (Matrix q, Matrix r) k =
+  let mk = m - k
+      nk = n - k
+      -- subcolumn x = r[k..m-1, k]
+      x = A.tabulate [mk] (\[i] -> r A.! [k + i, k])
+      xk = x A.! [0]
+      norm = sqrt (sum [(x A.! [i]) * (x A.! [i]) | i <- [0 .. mk - 1]])
+      alpha = bool (negate norm) norm (xk < zero)
+      v = A.tabulate [mk] (\[i] -> bool (x A.! [i]) (xk - alpha) (i == 0))
+      vtv = sum [(v A.! [i]) * (v A.! [i]) | i <- [0 .. mk - 1]]
+   in bool
+        (Matrix q, Matrix r)
+        ( let scale = (one + one) / vtv
+              -- update r[k..m-1, k..n-1]
+              subR = A.tabulate [mk, nk] (\[i, j] -> r A.! [k + i, k + j])
+              vta = A.prod [0] [0] sum (*) v subR
+              outerR = A.expand (*) v vta
+              subR' = A.zipWith (-) subR (fmap (scale *) outerR)
+              r' = updateSubmatrix r k k subR'
+              -- update q[:, k..m-1] on the right by H_k
+              subQ = A.tabulate [m, mk] (\[i, j] -> q A.! [i, k + j])
+              qv = A.prod [1] [0] sum (*) subQ v
+              outerQ = A.expand (*) qv v
+              subQ' = A.zipWith (-) subQ (fmap (scale *) outerQ)
+              q' = updateSubmatrix q 0 k subQ'
+           in (Matrix q', Matrix r')
+        )
+        (vtv == zero)
+
+-- | Overwrite a rectangular region of a matrix with a smaller array.
+updateSubmatrix :: A.Array a -> Int -> Int -> A.Array a -> A.Array a
+updateSubmatrix m rowOff colOff sub =
+  let sh = VU.toList (A.shape m)
+      subSh = VU.toList (A.shape sub)
+      rowsSub = subSh !! 0
+      colsSub = subSh !! 1
+   in A.tabulate sh $ \ij -> case ij of
+        [i, j]
+          | i >= rowOff && i < rowOff + rowsSub && j >= colOff && j < colOff + colsSub ->
+              sub A.! [i - rowOff, j - colOff]
+          | otherwise -> m A.! [i, j]
+        _ -> error "Circuit.Mat.Dense.updateSubmatrix: expected rank-2 index"
