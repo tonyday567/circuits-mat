@@ -21,9 +21,11 @@ module Circuit.Mat.Dense
     matVec,
     starMatrix,
     qrM,
+    forwardSubstStream,
   )
 where
 
+import Circuit.Mat.Array.Stream qualified as Stream
 import Data.Bool (bool)
 import Data.Foldable hiding (sum)
 import Data.List (foldl')
@@ -233,3 +235,27 @@ updateSubmatrix m rowOff colOff sub =
               sub A.! [i - rowOff, j - colOff]
           | otherwise -> m A.! [i, j]
         _ -> error "Circuit.Mat.Dense.updateSubmatrix: expected rank-2 index"
+
+-- | Forward substitution as a stream morphism.
+--
+-- Solves @L y = b@ for unit lower-triangular @L@ by streaming rows of @L@ and
+-- components of @b@, accumulating @y@ one component at a time.  Each step is a
+-- dot product of the already-computed prefix of @y@ with the active row prefix
+-- of @L@, followed by subtraction from the current @b@ component.
+forwardSubstStream ::
+  (Additive a, Subtractive a, Multiplicative a) =>
+  A.Array a ->
+  A.Array a ->
+  A.Array a
+forwardSubstStream l b = go (Stream.uncons l) (Stream.uncons b) A.empty
+  where
+    go (Stream.These rowL restL) (Stream.These bi restB) ys =
+      let yi = solveRow rowL bi ys
+       in go (Stream.uncons restL) (Stream.uncons restB) (Stream.snoc ys yi)
+    go (Stream.This rowL) (Stream.This bi) ys = Stream.snoc ys (solveRow rowL bi ys)
+    go _ _ ys = ys
+    solveRow rowL bi ys =
+      let k = A.length ys
+          rowPrefix = A.take 0 k rowL
+          rowDot = sum [rowPrefix A.! [j] * ys A.! [j] | j <- [0 .. k - 1]]
+       in A.zipWith (-) bi (A.array [] [rowDot])

@@ -24,7 +24,7 @@ import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, id
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Complex (complexSMul)
-import Circuit.Mat.Dense (Matrix (..), matTimes, qrM)
+import Circuit.Mat.Dense (Matrix (..), forwardSubstStream, matTimes, qrM)
 import Circuit.Mat.Field (MatField (..), cholM, householderStep, inverseM, invtriM, luM, luRank1M)
 import NumHask.Algebra.Field (ExpField (..))
 import NumHask.Algebra.Lattice (Lattice)
@@ -38,7 +38,7 @@ import Data.These (These (..))
 import Harpie.Array qualified as A
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fin (..), Fins (..), KnownNats (..), SNat, SNats, indexWindowsL, pattern SNat, pattern SNats)
-import NumHask.Algebra.Additive (Additive (..), Subtractive)
+import NumHask.Algebra.Additive (Additive (..), Subtractive, sum)
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
 import NumHask.Data.Complex (Complex, (+:))
@@ -101,7 +101,8 @@ main = do
         ("D1 LU with partial pivoting recovers A = P^T L U", checkD1),
         ("D2 LU as iterated rank-1 update agrees with reference luM", checkD2),
         ("D3 Householder reflection zeroes the subdiagonal of a column", checkD3),
-        ("D4 QR decomposition recovers A = Q R with orthogonal Q", checkD4)
+        ("D4 QR decomposition recovers A = Q R with orthogonal Q", checkD4),
+        ("D5 Forward substitution as a Stream morphism recovers L y = b", checkD5)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -762,6 +763,18 @@ checkD4 =
       ident = Matrix (A.ident [4, 4])
       qr = matTimes (Matrix q) (Matrix r)
    in matrixAboutEqual qr (Matrix a) && matrixAboutEqual qtq ident
+
+-- | D5 ⟜ Forward substitution as a Stream morphism solves L y = b.
+--
+-- Streams rows of the unit lower-triangular @L@ and components of @b@,
+-- accumulating @y@.  The oracle verifies @L y = b@ by direct multiplication.
+checkD5 :: Bool
+checkD5 =
+  let l = A.array [3, 3] [1, 0, 0, 2, 1, 0, 3, 4, 1] :: A.Array Double
+      b = A.array [3] [1, 2, 3] :: A.Array Double
+      y = forwardSubstStream l b
+      ly = A.tabulate [3] (\[i] -> sum [l A.! [i, j] * y A.! [j] | j <- [0 .. i]])
+   in matrixAboutEqual (Matrix ly) (Matrix b)
 
 -- | Elementwise approximate equality of two value-sized matrices.
 matrixAboutEqual ::
