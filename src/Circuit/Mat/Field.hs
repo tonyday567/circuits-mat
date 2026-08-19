@@ -26,6 +26,7 @@ module Circuit.Mat.Field
     inverseM,
     luM,
     luRank1M,
+    householderStep,
 
     -- * Matrix-as-ring wrapper
     MatField (..),
@@ -41,7 +42,7 @@ import Harpie.Shape (KnownNats)
 import Harpie.Shape qualified as S
 import NumHask.Algebra.Additive (Additive (..), sum)
 import NumHask.Algebra.Field (ExpField (..))
-import NumHask.Algebra.Metric (Absolute, abs)
+import NumHask.Algebra.Metric (Absolute, abs, signum)
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Prelude hiding (sum)
 
@@ -268,6 +269,57 @@ luRank1M a = (p, l, u)
           | i <= j -> m F.! [i, j]
           | otherwise -> zero
         _ -> error "luRank1M: expected rank-2 index"
+
+-- | Apply a Householder reflection to zero the subdiagonal of column @k@.
+--
+-- For column @x = a[:,k]@, compute a reflector @H = I - 2 v v^T / (v^T v)@
+-- such that @H x = α e_k@ with @α = -sign(x[k]) · ||x||@.  The action on the
+-- whole matrix is the rank-1 update
+--
+-- > a' = a - (2 / (v^T v)) · v ⊗ (v^T a)
+--
+-- where @v^T a@ is a contraction over the row axis and @v ⊗ (...)@ is an
+-- outer product.  This is the circuit-native QR step: a scheduled reflection
+-- implemented as expand / contract / subtract.
+householderStep ::
+  forall n a.
+  ( KnownNat n,
+    KnownNats '[n, n],
+    Additive a,
+    Subtractive a,
+    Multiplicative a,
+    Divisive a,
+    ExpField a,
+    Absolute a,
+    Ord a,
+    Show a
+  ) =>
+  Int ->
+  MatrixM n a ->
+  MatrixM n a
+householderStep k a = F.zipWith (-) a (fmap (scale *) outer)
+  where
+    x :: F.Array '[n] a
+    x = F.tabulate $ \s -> case S.fromFins s of
+      [i] -> a F.! [i, k]
+      _ -> error "householderStep: expected rank-1 index"
+    xk = x F.! [k]
+    norm = sqrt (sum [(x F.! [i]) * (x F.! [i]) | i <- [0 .. S.valueOf @n - 1]])
+    alpha = bool (negate norm) norm (xk < zero)
+    v :: F.Array '[n] a
+    v = F.tabulate $ \s -> case S.fromFins s of
+      [i]
+        | i < k -> zero
+        | i == k -> xk - alpha
+        | otherwise -> x F.! [i]
+      _ -> error "householderStep: expected rank-1 index"
+    vtv = sum [(v F.! [i]) * (v F.! [i]) | i <- [0 .. S.valueOf @n - 1]]
+    scale = (one + one) / vtv
+    -- v^T a: contract v's only axis with a's row axis, leaving columns.
+    vta :: F.Array '[n] a
+    vta = F.prod (F.Dims @'[0]) (F.Dims @'[0]) sum (*) v a
+    -- outer product v ⊗ (v^T a), shape [n, n].
+    outer = F.expand (*) v vta
 
 -- | Swap two rows of a matrix.
 swapRows ::

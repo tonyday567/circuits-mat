@@ -24,9 +24,10 @@ import Circuit.Mat.Affine (affine, applyAffine, composeAffine, flattenAffine, id
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Complex (complexSMul)
-import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM, luM, luRank1M)
+import Circuit.Mat.Field (MatField (..), cholM, householderStep, inverseM, invtriM, luM, luRank1M)
+import NumHask.Algebra.Field (ExpField (..))
 import NumHask.Algebra.Lattice (Lattice)
-import NumHask.Algebra.Metric (Epsilon, aboutEqual)
+import NumHask.Algebra.Metric (Absolute, Epsilon, abs, aboutEqual)
 import Circuit.Mat.Harpie (F (..), finF, matF)
 import Circuit.Mat.Prob (matToProb, runProbAt)
 import Circuit.Tensor (Bias (..), Fire (..), Schedule (..), Shared (..))
@@ -41,7 +42,7 @@ import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Algebra.Ring (StarSemiring (..))
 import NumHask.Data.Complex (Complex, (+:))
 import System.Exit (exitFailure)
-import Prelude hiding (curry, recip, sum, uncurry, (*), (+), (/))
+import Prelude hiding (abs, curry, recip, sqrt, sum, uncurry, (*), (+), (/))
 
 main :: IO ()
 main = do
@@ -97,7 +98,8 @@ main = do
         ("C47 Harpie prod structure-constant contraction matches expected", checkC47),
         ("C48 Mat and harpie complex multiplication agree", checkC48),
         ("D1 LU with partial pivoting recovers A = P^T L U", checkD1),
-        ("D2 LU as iterated rank-1 update agrees with reference luM", checkD2)
+        ("D2 LU as iterated rank-1 update agrees with reference luM", checkD2),
+        ("D3 Householder reflection zeroes the subdiagonal of a column", checkD3)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -724,6 +726,27 @@ checkD2 =
       (p1, l1, u1) = luM a
       (p2, l2, u2) = luRank1M a
    in p1 == p2 && l1 == l2 && u1 == u2
+
+-- | D3 ⟜ Householder reflection zeroes the subdiagonal of a column.
+--
+-- Applying a Householder reflector to column 0 of a matrix should produce a
+-- column whose only non-zero entry is at row 0, with magnitude equal to the
+-- Euclidean norm of the original column.  The implementation uses the
+-- rank-1 update @A' = A - (2 / v^T v) · v ⊗ (v^T A)@.
+checkD3 :: Bool
+checkD3 =
+  let a :: F.Array '[3, 3] Double
+      a = F.array @[3, 3] [2, 1, 1, 4, 3, 1, 8, 7, 2]
+      a' = householderStep 0 a
+      col0 :: F.Array '[3] Double
+      col0 = F.tabulate $ \s -> case fromFins s of
+        [i] -> a' F.! [i, 0]
+        _ -> error "checkD3: expected rank-1 index"
+      expectedNorm :: Double
+      expectedNorm = sqrt (2 * 2 + 4 * 4 + 8 * 8)
+   in aboutEqual (abs (col0 F.! [0]) :: Double) expectedNorm
+        && aboutEqual (col0 F.! [1]) 0
+        && aboutEqual (col0 F.! [2]) 0
 
 -- | Elementwise approximate equality of two matrices.
 matAboutEqual ::
