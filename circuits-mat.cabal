@@ -30,11 +30,13 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit.Mat
+    Circuit.Mat.Affine
     Circuit.Mat.Array
     Circuit.Mat.Array.Stream
     Circuit.Mat.Dense
     Circuit.Mat.Field
     Circuit.Mat.Harpie
+    Circuit.Mat.Prob
 
   build-depends:
     base >=4.18 && <5,

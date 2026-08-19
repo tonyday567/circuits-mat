@@ -19,11 +19,14 @@
 module Main (main) where
 
 import Circuit.Mat (Conjugate (..), Dual (..), Finite (..), Mat (..), conjugateMat, curryMat, dualMat, evalMat, runMat, traceMat, transposeMat, uncurryMat)
+import Circuit.Mat.Affine (affine, applyAffine, composeAffine, identityAffine, swapAxesAffine)
 import Circuit.Mat.Array
 import Circuit.Mat.Array.Stream (Cons (..), Snoc (..), These (..), Uncons (..))
 import Circuit.Mat.Field (MatField (..), cholM, inverseM, invtriM)
 import Circuit.Mat.Harpie (F (..), finF, matF)
+import Circuit.Mat.Prob (matToProb, runProbAt)
 import Data.Bool (bool)
+import Data.Maybe (fromJust)
 import Harpie.Array qualified as A
 import Harpie.Fixed qualified as F
 import Harpie.Shape (Fin (..), Fins (..), KnownNats (..), SNat, SNats, indexWindowsL, pattern SNat, pattern SNats)
@@ -75,7 +78,11 @@ main = do
         ("C34 Mat dual is not identity-on-objects", checkC34),
         ("C35 Mat conjugation is a third involution over Complex", checkC35),
         ("C36 Lolli curry/uncurry reshape are inverse", checkC36),
-        ("C37 Lolli eval contracts the repeated index", checkC37)
+        ("C37 Lolli eval contracts the repeated index", checkC37),
+        ("C38 Affine identity/composition roundtrip", checkC38),
+        ("C39 Affine swap-axes roundtrip", checkC39),
+        ("C40 Mat -> Prob carrier agreement on a stochastic matrix", checkC40),
+        ("C41 Dot-product construction agrees on harpie and Prob carriers", checkC41)
       ]
   if and results
     then putStrLn "circuits-mat-axioma: all green"
@@ -544,3 +551,43 @@ checkC37 =
    in runMat ev (True, (True, False)) False == 1
         && runMat ev (True, (False, False)) False == 0
         && runMat ev (True, (True, True)) True == 1
+
+-- | C38 ⟜ Affine identity is the unit and composition respects it.
+checkC38 :: Bool
+checkC38 =
+  let identP = identityAffine @'[2, 3]
+      identQ = identityAffine @'[6]
+      f = fromJust (affine @'[2, 3] @'[6] [[3, 1]] [0])
+      x = [1, 2]
+   in applyAffine identP x == x
+        && applyAffine (composeAffine f identP) x == applyAffine f x
+        && applyAffine (composeAffine identQ f) x == applyAffine f x
+
+-- | C39 ⟜ Swapping axes twice is the identity.
+checkC39 :: Bool
+checkC39 =
+  let swap12 = swapAxesAffine @2 @3
+      swap21 = swapAxesAffine @3 @2
+   in applyAffine (composeAffine swap21 swap12) [1, 2] == [1, 2]
+
+-- | C40 ⟜ A Mat term produces the same entry when run directly and when run
+-- through the Prob carrier.
+checkC40 :: Bool
+checkC40 =
+  let m :: Mat Int (F 2) (F 2)
+      m = Mat $ \(F (UnsafeFin ri)) (F (UnsafeFin cj)) -> [1, 2, 3, 4] !! (ri * 2 + cj)
+      i0 = finF @2 0
+      j1 = finF @2 1
+   in runMat m i0 j1 == runProbAt (matToProb m) i0 j1
+
+-- | C41 ⟜ The row/column dot-product construction flows through the Prob
+-- carrier unchanged.
+checkC41 :: Bool
+checkC41 =
+  let row = matF @1 @4 (\_ fj -> aval !! fromFin fj)
+      col = matF @4 @1 (\fi _ -> bval !! fromFin fi)
+      dotMat = Comp col row :: Mat Int (F 1) (F 1)
+      i = finF @1 0
+      j = finF @1 0
+   in runMat dotMat i j == runProbAt (matToProb dotMat) i j
+        && runMat dotMat i j == expected
