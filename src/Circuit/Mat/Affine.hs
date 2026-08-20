@@ -101,7 +101,7 @@ identityAffine =
 -- >>> let Just f = affine @'[2,3] @'[6] [[3,1]] [0]
 -- >>> let Just g = affine @'[6] @'[2,3] [[1],[2]] [0,0]
 -- >>> applyAffine (composeAffine g f) [1,2]
--- [1,2]
+-- [5,10]
 composeAffine ::
   forall p q r.
   (KnownNats p, KnownNats q, KnownNats r) =>
