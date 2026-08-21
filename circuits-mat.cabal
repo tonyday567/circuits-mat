@@ -2,16 +2,23 @@ cabal-version: 3.0
 name: circuits-mat
 version: 0.1.0.0
 license: BSD-3-Clause
+license-file: LICENSE
+copyright: Tony Day (c) 2026
+category: math
 author: Tony Day
 maintainer: tonyday567@gmail.com
-category: math
+homepage: https://github.com/tonyday567/circuits-mat#readme
+bug-reports: https://github.com/tonyday567/circuits-mat/issues
 synopsis: Matrices over a semiring as a traced monoidal category.
 description:
   Matrices indexed by finite types, with the Either tensor as biproduct.
   The trace computes the Schur-complement star formula, giving transitive
   closure, shortest paths, and regular expressions by choice of semiring.
-
 build-type: Simple
+tested-with:
+  ghc ==9.10.1
+  ghc ==9.12.2
+  ghc ==9.14.1
 
 source-repository head
   type: git
@@ -21,8 +28,15 @@ common ghc-options-stanza
   ghc-options:
     -Wall
     -Wno-unused-imports
-    -Wno-unused-top-binds
-    -Wno-pattern-namespace-specifier
+    -Wcompat
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wpartial-fields
+    -Wredundant-constraints
+
+  if impl(ghc >=9.14)
+    ghc-options: -Wno-pattern-namespace-specifier
 
 library
   import: ghc-options-stanza
@@ -38,6 +52,7 @@ library
     Circuit.Mat.Field
     Circuit.Mat.Harpie
     Circuit.Mat.Prob
+    Circuit.Mat.Square
 
   build-depends:
     base >=4.20 && <5,

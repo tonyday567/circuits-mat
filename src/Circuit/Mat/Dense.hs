@@ -23,6 +23,7 @@ module Circuit.Mat.Dense
     starMatrix,
     qrM,
     forwardSubstStream,
+    solve2,
   )
 where
 
@@ -260,3 +261,20 @@ forwardSubstStream l b = go (Stream.uncons l) (Stream.uncons b) A.empty
           rowPrefix = A.take 0 k rowL
           rowDot = sum [rowPrefix A.! [j] * ys A.! [j] | j <- [0 .. k - 1]]
        in A.zipWith (-) bi (A.array [] [rowDot])
+
+-- | Solve a 2×2 linear system.
+--
+-- For a system @A x = b@ with @A = [[a,b],[c,d]]@ and @b = [r,s]@,
+-- returns @x@ using Cramer's rule.  If the determinant is near zero,
+-- returns a zero vector as a soft failure.
+--
+-- >>> solve2 [[1.0, 2.0], [3.0, 4.0]] [5.0, 6.0]
+-- [-4.0,4.5]
+solve2 :: [[Double]] -> [Double] -> [Double]
+solve2 [[a, b], [c, d]] [r, s] =
+  let det = a P.* d P.- b P.* c
+   in bool
+        [0, 0]
+        [(d P.* r P.- b P.* s) P./ det, (a P.* s P.- c P.* r) P./ det]
+        (P.abs det P.< 1e-14)
+solve2 _ _ = P.error "solve2: expected 2×2"
