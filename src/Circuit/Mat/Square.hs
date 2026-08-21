@@ -26,7 +26,7 @@ import NumHask.Algebra.Metric (Absolute, abs)
 import NumHask.Algebra.Multiplicative (Divisive (..), Multiplicative (..))
 import NumHask.Data.Integral (FromInteger (..))
 import NumHask.Data.Rational (FromRational (..))
-import Prelude hiding (abs, (/), (*), (+), (-), fromInteger, fromRational)
+import Prelude hiding (abs, fromInteger, fromRational, (*), (+), (-), (/))
 import Prelude qualified as P
 
 -- | A square matrix of known dimension.
@@ -140,5 +140,5 @@ swap i j xs =
       _ | k P.== i -> xs P.!! j
       _ | k P.== j -> xs P.!! i
       _ -> x
-    | (k, x) <- P.zip [0 ..] xs
+  | (k, x) <- P.zip [0 ..] xs
   ]
