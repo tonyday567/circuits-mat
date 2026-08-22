@@ -57,6 +57,7 @@ library
   build-depends:
     base >=4.20 && <5,
     circuits >=0.3 && <0.4,
+    circuits-prob >=0.1 && <0.2,
     harpie >=0.3 && <0.4,
     numhask >=0.13 && <0.15,
     prettyprinter >=1.7 && <1.8,
