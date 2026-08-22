@@ -27,14 +27,14 @@
 --
 -- = Monoidal structure
 --
--- __Tensor@Either@__: 'par' places two matrices on disjoint wires (block
+-- __Tensor@Either@__: 'tensor' places two matrices on disjoint wires (block
 -- diagonal).  'unitl' \/ 'unitr' witness that 'Void' (the uninhabited type)
 -- is the tensor unit, reflecting the fact that a @0 × n@ or @m × 0@ matrix
--- has no entries.  Unit laws hold: @par (unitl . unitl') id = id@.
+-- has no entries.  Unit laws hold: @tensor (unitl . unitl') id = id@.
 --
--- __Action@Either@__: 'swap' permutes index positions — the symmetry of the
+-- __Action@Either@__: 'braid' permutes index positions — the symmetry of the
 -- biproduct.  The slide @slide :: Either a (Either b c) -> Either b
--- (Either a c)@ is derivable as @assoc . par swap id . assoc'@.
+-- (Either a c)@ is derivable as @assoc . tensor braid id . assoc'@.
 --
 -- = Biproduct structure and the 2-category
 --
@@ -224,7 +224,7 @@ instance (Finite a, Finite b) => Finite (a, b) where
 --
 -- Note: 'Par' does not require 'Finite' — it is a structural constructor
 -- whose 'Finite' evidence is supplied by the subterms or by 'Mat' leaves.
--- The 'Tensor' instance uses 'Par' for 'par'.
+-- The 'Tensor' instance uses 'Par' for 'tensor'.
 data Mat s i j where
   Mat :: (Finite i, Finite j) => (i -> j -> s) -> Mat s i j
   Id :: Mat s a a
@@ -291,7 +291,7 @@ swapEither (Right b) = Left b
 
 -- | Nested-slide braid for 'Either'.
 --
--- This is the coproduct slide, derivable as @assoc . par swap id . assoc'@.
+-- This is the coproduct slide, derivable as @assoc . tensor braid id . assoc'@.
 slideEither :: Either a (Either b c) -> Either b (Either a c)
 slideEither (Left a) = Right (Left a)
 slideEither (Right (Left b)) = Left b
@@ -299,18 +299,18 @@ slideEither (Right (Right c)) = Right (Right c)
 
 -- | Coproduct tensor action on 'Mat'.
 --
--- 'par' places two matrices on disjoint 'Either' wires (block diagonal).
+-- 'tensor' places two matrices on disjoint 'Either' wires (block diagonal).
 -- Unit laws use 'Void' as the tensor unit — a matrix indexed by 'Void'
 -- has no entries, so the unitor is the identity on the payload.
 --
 -- >>> let a = Mat (\i j -> if i == j then (1 :: Int) else 0) :: Mat Int Node Node
 -- >>> let b = Mat (\i j -> (2 :: Int)) :: Mat Int Node Node
--- >>> runMat (par a b) (Left A) (Left A)
+-- >>> runMat (tensor a b) (Left A) (Left A)
 -- 1
--- >>> runMat (par a b) (Right A) (Right A)
+-- >>> runMat (tensor a b) (Right A) (Right A)
 -- 2
 instance Tensor Either (Mat s) where
-  par = Par
+  tensor = Par
   unitl = Fun (either absurd id)
   unitl' = Fun Right
   unitr = Fun (either id absurd)
@@ -318,14 +318,14 @@ instance Tensor Either (Mat s) where
 
 -- | Coproduct symmetry on 'Mat'.
 --
--- 'swap' permutes index positions on the 'Either' sum.
+-- 'braid' permutes index positions on the 'Either' sum.
 --
--- >>> runMat (swap :: Mat Int (Either Node Node) (Either Node Node)) (Left A) (Right A)
+-- >>> runMat (braid :: Mat Int (Either Node Node) (Either Node Node)) (Left A) (Right A)
 -- 1
--- >>> runMat swap (Right A) (Left A)
+-- >>> runMat braid (Right A) (Left A)
 -- 1
 instance Action Either (Mat s) where
-  swap = Fun swapEither
+  braid = Fun swapEither
 
 -- | Compact-closed implication on index pairs: @A ⊸ B@ is the space of
 -- matrix entries @(a, b)@.  'curry'/'uncurry' reshape; 'eval' contracts
