@@ -173,7 +173,6 @@ where
 
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..))
-import Circuit.Loop (Loop (..))
 import Circuit.Mat.Field
 import Circuit.Tensor (Action (..), Tensor (..), Unit)
 import Data.Bool (bool)
