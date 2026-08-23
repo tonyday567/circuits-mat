@@ -136,9 +136,7 @@ flattenAffine =
         }
 
 -- | Swap the two axes of a rank-2 shape.
-swapAxesAffine ::
-  (KnownNat m, KnownNat n) =>
-  Affine '[m, n] '[n, m]
+swapAxesAffine :: Affine '[m, n] '[n, m]
 swapAxesAffine =
   Affine
     { lambda = [[0, 1], [1, 0]],

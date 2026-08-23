@@ -14,6 +14,7 @@ description:
   Matrices indexed by finite types, with the Either tensor as biproduct.
   The trace computes the Schur-complement star formula, giving transitive
   closure, shortest paths, and regular expressions by choice of semiring.
+
 build-type: Simple
 tested-with:
   ghc ==9.10.1
@@ -33,7 +34,7 @@ common ghc-options-stanza
     -Wincomplete-record-updates
     -Wincomplete-uni-patterns
     -Wpartial-fields
-    -Wredundant-constraints
+    -Wno-redundant-constraints
 
   if impl(ghc >=9.14)
     ghc-options: -Wno-pattern-namespace-specifier

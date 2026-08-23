@@ -75,10 +75,6 @@ cholM ::
   forall n a.
   ( KnownNat n,
     KnownNats '[n, n],
-    Additive a,
-    Subtractive a,
-    Multiplicative a,
-    Divisive a,
     ExpField a
   ) =>
   MatrixM n a ->
@@ -90,9 +86,6 @@ cholM a = l
 norm_ ::
   forall n a.
   ( KnownNat n,
-    Additive a,
-    Multiplicative a,
-    Divisive a,
     ExpField a
   ) =>
   Int ->
@@ -132,10 +125,6 @@ inverseM ::
   forall n a.
   ( KnownNat n,
     KnownNats '[n, n],
-    Additive a,
-    Subtractive a,
-    Multiplicative a,
-    Divisive a,
     ExpField a
   ) =>
   MatrixM n a ->
@@ -157,13 +146,10 @@ luM ::
   forall n a.
   ( KnownNat n,
     KnownNats '[n, n],
-    Additive a,
     Subtractive a,
-    Multiplicative a,
     Divisive a,
     Absolute a,
-    Ord a,
-    Show a
+    Ord a
   ) =>
   MatrixM n a ->
   (MatrixM n a, MatrixM n a, MatrixM n a)
@@ -215,13 +201,10 @@ luRank1M ::
   forall n a.
   ( KnownNat n,
     KnownNats '[n, n],
-    Additive a,
     Subtractive a,
-    Multiplicative a,
     Divisive a,
     Absolute a,
-    Ord a,
-    Show a
+    Ord a
   ) =>
   MatrixM n a ->
   (MatrixM n a, MatrixM n a, MatrixM n a)
@@ -287,14 +270,8 @@ householderStep ::
   forall n a.
   ( KnownNat n,
     KnownNats '[n, n],
-    Additive a,
-    Subtractive a,
-    Multiplicative a,
-    Divisive a,
     ExpField a,
-    Absolute a,
-    Ord a,
-    Show a
+    Ord a
   ) =>
   Int ->
   MatrixM n a ->
@@ -351,9 +328,7 @@ invtriM ::
   forall n a.
   ( KnownNat n,
     KnownNats '[n, n],
-    Additive a,
     Subtractive a,
-    Multiplicative a,
     Divisive a
   ) =>
   MatrixM n a ->
@@ -392,9 +367,7 @@ instance
   ( KnownNat n,
     KnownNats '[n, n],
     Additive a,
-    Subtractive a,
     Multiplicative a,
-    Divisive a,
     ExpField a
   ) =>
   Divisive (MatField n a)

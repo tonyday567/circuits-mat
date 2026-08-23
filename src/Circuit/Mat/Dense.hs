@@ -157,14 +157,8 @@ starMatrix (Matrix a) =
 -- @a = q r@.  The algorithm is the standard column-by-column Householder
 -- reduction on value-sized 'Harpie.Array' matrices.
 qrM ::
-  ( Additive a,
-    Subtractive a,
-    Multiplicative a,
-    Divisive a,
-    ExpField a,
-    Absolute a,
-    Ord a,
-    Show a
+  ( ExpField a,
+    Ord a
   ) =>
   Matrix a ->
   (Matrix a, Matrix a)
@@ -181,14 +175,8 @@ qrM (Matrix a) =
 
 -- | One Householder QR step for column @k@.
 householderQRStep ::
-  ( Additive a,
-    Subtractive a,
-    Multiplicative a,
-    Divisive a,
-    ExpField a,
-    Absolute a,
-    Ord a,
-    Show a
+  ( ExpField a,
+    Ord a
   ) =>
   Int ->
   Int ->
@@ -245,7 +233,7 @@ updateSubmatrix m rowOff colOff sub =
 -- dot product of the already-computed prefix of @y@ with the active row prefix
 -- of @L@, followed by subtraction from the current @b@ component.
 forwardSubstStream ::
-  (Additive a, Subtractive a, Multiplicative a) =>
+  (Subtractive a, Multiplicative a) =>
   A.Array a ->
   A.Array a ->
   A.Array a
