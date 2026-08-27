@@ -174,7 +174,7 @@ where
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Mat.Field
-import Circuit.Tensor (Action (..), Tensor (..), Unit)
+import Circuit.Tensor (Action (..), Tensor (..), Unital (..), Unit)
 import Data.Bool (bool)
 import Data.List (foldl')
 import Data.Void (Void, absurd)
@@ -309,12 +309,14 @@ slideEither (Right (Right c)) = Right (Right c)
 -- 1
 -- >>> runMat (tensor a b) (Right A) (Right A)
 -- 2
-instance Tensor Either (Mat s) where
-  tensor = Par
+instance Unital Either (Mat s) where
   unitl = Fun (either absurd id)
   unitl' = Fun Right
   unitr = Fun (either id absurd)
   unitr' = Fun Left
+
+instance Tensor Either (Mat s) where
+  tensor = Par
 
 -- | Coproduct symmetry on 'Mat'.
 --
