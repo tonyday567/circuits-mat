@@ -174,7 +174,7 @@ where
 import Circuit.Category (Category (..))
 import Circuit.Channel (Channel (..), Strength (..))
 import Circuit.Mat.Field
-import Circuit.Tensor (Action (..), Tensor (..), Unital (..), Unit)
+import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
 import Data.Bool (bool)
 import Data.List (foldl')
 import Data.Void (Void, absurd)
