@@ -172,7 +172,7 @@ module Circuit.Mat
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Channel (Channel (..), Strength (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Mat.Field
 import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
 import Data.Bool (bool)
@@ -353,9 +353,11 @@ uncurryMat ::
 uncurryMat g = Mat $ \(x, y) z -> runMat g x (y, z)
 
 -- | Arrow-level monoidal structure for 'Either' inside 'Mat'.
-instance (Additive s, Multiplicative s) => Channel Either (Mat s) where
+instance (Additive s, Multiplicative s) => Assoc Either (Mat s) where
   assoc = Fun assocEither
   assoc' = Fun assocEither'
+
+instance (Additive s, Multiplicative s) => Slide Either (Mat s) where
   slide = Fun slideEither
 
 -- | Tensorial strength for the 'Either' tensor on 'Mat'.
