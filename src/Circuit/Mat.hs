@@ -172,9 +172,9 @@ module Circuit.Mat
 where
 
 import Circuit.Category (Category (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Circuit.Mat.Field
 import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
+import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bool (bool)
 import Data.List (foldl')
 import Data.Void (Void, absurd)
