@@ -173,7 +173,7 @@ where
 
 import Circuit.Category (Category (..))
 import Circuit.Mat.Field
-import Circuit.Tensor (Action (..), Tensor (..), Unit, Unital (..))
+import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unit, Unital (..))
 import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
 import Data.Bool (bool)
 import Data.List (foldl')
@@ -224,7 +224,7 @@ instance (Finite a, Finite b) => Finite (a, b) where
 --
 -- Note: 'Par' does not require 'Finite' — it is a structural constructor
 -- whose 'Finite' evidence is supplied by the subterms or by 'Mat' leaves.
--- The 'Tensor' instance uses 'Par' for 'tensor'.
+-- The 'SemiTensor' instance uses 'Par' for 'tensor'.
 data Mat s i j where
   Mat :: (Finite i, Finite j) => (i -> j -> s) -> Mat s i j
   Id :: Mat s a a
@@ -315,8 +315,10 @@ instance Unital Either (Mat s) where
   unitr = Fun (either id absurd)
   unitr' = Fun Left
 
-instance Tensor Either (Mat s) where
+instance (Additive s, Multiplicative s) => SemiTensor Either (Mat s) where
   tensor = Par
+
+instance (Additive s, Multiplicative s) => Tensor Either (Mat s)
 
 -- | Coproduct symmetry on 'Mat'.
 --
@@ -326,7 +328,7 @@ instance Tensor Either (Mat s) where
 -- 1
 -- >>> runMat braid (Right A) (Left A)
 -- 1
-instance Action Either (Mat s) where
+instance (Additive s, Multiplicative s) => Action Either (Mat s) where
   braid = Fun swapEither
 
 -- | Compact-closed implication on index pairs: @A ⊸ B@ is the space of
