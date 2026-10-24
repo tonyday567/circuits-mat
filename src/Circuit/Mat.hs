@@ -32,9 +32,9 @@
 -- is the tensor unit, reflecting the fact that a @0 × n@ or @m × 0@ matrix
 -- has no entries.  Unit laws hold: @tensor (unitl . unitl') id = id@.
 --
--- __Action@Either@__: 'braid' permutes index positions — the symmetry of the
--- biproduct.  The slide @slide :: Either a (Either b c) -> Either b
--- (Either a c)@ is derivable as @assoc . tensor braid id . assoc'@.
+-- __Symmetric@Either@__: 'braid' permutes index positions — the symmetry of
+-- the biproduct.  The outer swap @outerSwap :: Either a (Either b c) ->
+-- Either b (Either a c)@ is derivable as @assoc . tensor braid id . assoc'@.
 --
 -- = Biproduct structure and the 2-category
 --
@@ -113,11 +113,11 @@
 -- The trace satisfies the standard traced-monoidal laws (naturality,
 -- sliding, vanishing, yanking) — see the docspec examples.
 --
--- = Traced instance
+-- = Trace instance
 --
 -- With local 'Category' carrying @Ob (Mat s) a = Finite a@, the feedback
 -- channel of 'trace' carries 'Finite' evidence. 'traceMat' is therefore a
--- lawful 'Traced' 'Either' instance (Schur-complement / star-closure).
+-- lawful 'Trace' 'Either' instance (Schur-complement / star-closure).
 --
 -- = Relation to harpie
 --
@@ -173,8 +173,8 @@ where
 
 import Circuit.Category (Category (..))
 import Circuit.Mat.Field
-import Circuit.Tensor (Action (..), SemiTensor (..), Tensor, Unit, Unital (..))
-import Circuit.Traced (Assoc (..), Slide (..), Strength (..), Yank (..))
+import Circuit.Tensor (SemiTensor (..), Symmetric (..), Tensor, Unit, Unital (..))
+import Circuit.Traced (Assoc (..), OuterSwap (..), Strength (..), Trace (..))
 import Data.Bool (bool)
 import Data.List (foldl')
 import Data.Void (Void, absurd)
@@ -328,7 +328,7 @@ instance (Additive s, Multiplicative s) => Tensor Either (Mat s)
 -- 1
 -- >>> runMat braid (Right A) (Left A)
 -- 1
-instance (Additive s, Multiplicative s) => Action Either (Mat s) where
+instance (Additive s, Multiplicative s) => Symmetric Either (Mat s) where
   braid = Fun swapEither
 
 -- | Compact-closed implication on index pairs: @A ⊸ B@ is the space of
@@ -359,8 +359,8 @@ instance (Additive s, Multiplicative s) => Assoc Either (Mat s) where
   assoc = Fun assocEither
   assoc' = Fun assocEither'
 
-instance (Additive s, Multiplicative s) => Slide Either (Mat s) where
-  slide = Fun slideEither
+instance (Additive s, Multiplicative s) => OuterSwap Either (Mat s) where
+  outerSwap = Fun slideEither
 
 -- | Tensorial strength for the 'Either' tensor on 'Mat'.
 instance (Additive s, Multiplicative s) => Strength Either (Mat s) where
