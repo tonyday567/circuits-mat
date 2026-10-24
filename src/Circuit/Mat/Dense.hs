@@ -262,7 +262,7 @@ solve2 :: [[Double]] -> [Double] -> [Double]
 solve2 [[a, b], [c, d]] [r, s] =
   let det = a P.* d P.- b P.* c
    in bool
-        [0, 0]
         [(d P.* r P.- b P.* s) P./ det, (a P.* s P.- c P.* r) P./ det]
+        [0, 0]
         (P.abs det P.< 1e-14)
 solve2 _ _ = P.error "solve2: expected 2×2"
